@@ -102,6 +102,11 @@ files pulling in others via `@` includes. Run this first when behavior seems off
 
 ## Notes and caveats
 
+- The guardrail hook is a best-effort pattern blocklist, not a security boundary. It catches
+  common mutating Terraform, AWS, kubectl, and Helm commands, but a command written in an
+  unexpected form, or run through a script or another tool, can get past it. It has not yet
+  been verified in a live Copilot CLI session. Keep real credentials scoped so that the
+  agent can't make changes even if the hook misses one.
 - Instruction changes take effect in the **next** session, not the current one.
   After adding a skill mid-session, run `/skills reload`.
 - A report on the copilot-cli tracker (issue #3013) says `preToolUse` hooks don't fire for

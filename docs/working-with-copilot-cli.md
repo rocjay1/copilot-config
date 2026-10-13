@@ -118,6 +118,6 @@ Can't name the failure it prevents?            → don't add it
 - [Creating agent skills](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/create-skills)
 - [Copilot CLI hooks reference](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-hooks-reference)
 - [Dynamic workflows (fleet vs. autopilot)](https://docs.github.com/en/copilot/concepts/agents/dynamic-workflows)
-- [awesome-copilot Learning Hub: /fork](https://git.cynarski.dev/Awesome/awesome-copilot/commit/e737a33955bfcfa680249b10d761f6c66a4a9f06)
+- [awesome-copilot Learning Hub: /fork](https://github.com/github/awesome-copilot/commit/e737a33955bfcfa680249b10d761f6c66a4a9f06)
 - [copilot-cli #3013: hooks and subagents](https://github.com/github/copilot-cli/issues/3013)
 - [copilot-cli #3987: COPILOT_CUSTOM_INSTRUCTIONS_DIRS change](https://github.com/github/copilot-cli/issues/3987)
