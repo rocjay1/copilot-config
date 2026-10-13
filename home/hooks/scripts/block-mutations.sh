@@ -30,14 +30,18 @@ case "$tool_name" in
 esac
 shopt -u nocasematch
 
+# `aws` followed by any global options (e.g. --profile p, --region r, --no-cli-pager),
+# so options placed before the service name don't bypass the AWS patterns.
+AWS='aws([[:space:]]+-[^[:space:]]*([[:space:]]+[^-[:space:]][^[:space:]]*)?)*'
+
 PATTERNS=(
   # Terraform / OpenTofu / Terragrunt state-changing commands
   '(terraform|tofu|terragrunt)[^"]*[[:space:]](apply|destroy|import|taint|untaint|force-unlock)([^a-z-]|$)'
   '(terraform|tofu|terragrunt)[^"]*[[:space:]]state[[:space:]]+(rm|mv|push|replace-provider)'
   # AWS CLI mutating verbs (service subcommands)
-  'aws[[:space:]]+[a-z0-9-]+[[:space:]]+(create|delete|put|update|modify|terminate|run|start|stop|reboot|attach|detach|associate|disassociate|authorize|revoke|restore|replace|register|deregister|enable|disable|tag|untag|set|reset|import|cancel|invoke|deploy)(-|[[:space:]]|$)'
+  "$AWS"'[[:space:]]+[a-z0-9-]+[[:space:]]+(create|delete|put|update|modify|terminate|run|start|stop|reboot|attach|detach|associate|disassociate|authorize|revoke|restore|replace|register|deregister|enable|disable|tag|untag|set|reset|import|cancel|invoke|deploy)(-|[[:space:]]|$)'
   # AWS S3 high-level commands that write or delete
-  'aws[[:space:]]+s3[[:space:]]+(rm|mv|cp|sync|rb|mb)([[:space:]]|$)'
+  "$AWS"'[[:space:]]+s3[[:space:]]+(rm|mv|cp|sync|rb|mb)([[:space:]]|$)'
   # Kubernetes / Helm
   'kubectl[^"]*[[:space:]](apply|delete|create|replace|patch|scale|drain|cordon|edit)([[:space:]]|$)'
   'helm[[:space:]]+(install|upgrade|uninstall|rollback)([[:space:]]|$)'
