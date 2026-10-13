@@ -46,8 +46,9 @@ mid-debug hypotheses. `copilot --continue` resumes the most recent session;
 - **`/fleet`** delegates to subagents in parallel. Good for broad, separable work. Typical
   flow: plan first, then `/fleet implement the plan`.
 - **`/delegate`** hands off with more autonomy, ending in a PR. Good for well-specified chores.
-- Known issue: `preToolUse` hooks reportedly don't fire for subagent tool calls
-  (copilot-cli #3013). Don't rely on hooks to guard `/fleet` until that's fixed in your version.
+- Older Copilot CLI releases were affected by issue #3013, where `preToolUse` and `postToolUse`
+  hooks didn't apply to subagent calls. Current releases include the fix; update your CLI and
+  test your installed version before relying on hooks to guard `/fleet` subagents.
 
 ## Daily loop
 

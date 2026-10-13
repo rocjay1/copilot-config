@@ -122,9 +122,9 @@ for checking what the CLI actually loaded. Run this first when behavior seems of
   `/instructions` and `/context` in a fresh session, especially after CLI upgrades.
 - Instruction changes take effect in the **next** session, not the current one.
   After adding a skill mid-session, run `/skills reload`.
-- A report on the copilot-cli tracker (issue #3013) says `preToolUse` hooks don't fire for
-  subagent tool calls. Check the issue and test your installed version before relying on hooks
-  to guard `/fleet` subagents.
+- Older Copilot CLI releases were affected by issue #3013, where `preToolUse` and `postToolUse`
+  hooks didn't apply to subagent calls. Current releases include the fix; update your CLI and
+  test your installed version before relying on hooks to guard `/fleet` subagents.
 - Personal `AGENTS.md` loaded via `COPILOT_CUSTOM_INSTRUCTIONS_DIRS` stopped applying
   globally after v1.0.65 (copilot-cli issue #3987). Use `~/.copilot/copilot-instructions.md`.
 - Hook payloads come in two formats (camelCase vs. PascalCase event names). The guardrail
