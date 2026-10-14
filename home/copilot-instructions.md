@@ -18,3 +18,5 @@
 - Infrastructure: plan and validate only. Never apply, destroy, or run mutating cloud CLI commands.
 - If `NOTES.md` exists at the repo root, read it before starting work.
 - When unsure about a requirement, ask one question rather than guessing.
+- If I've corrected the same thing twice, stop and suggest running the `handoff` skill and starting
+  fresh (`/clear`) with a better prompt, instead of trying again.

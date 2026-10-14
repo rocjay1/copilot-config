@@ -14,6 +14,7 @@ decision below is about keeping the working set relevant to the task in front of
 - The task changes: new ticket, new bug, new question.
 - You've hit a dead end. After two or three corrections on the same thing, the failed
   approaches in context are anchoring the model. A clean session with a better prompt wins.
+  (The personal instructions tell Copilot to suggest this after a second correction.)
 - You finish a unit of work (commit, PR).
 
 `/clear` accepts the next task inline, so you can reset and kick off in one step.
