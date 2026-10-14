@@ -29,6 +29,9 @@ to change it (0 turns it off), pass --max-ai-credits yourself, or raise it in-se
 --dry-run prints the copilot command this would run, one argument per line, and exits.
 --check-notes reports whether NOTES.md is current (exit 0) or out of date (exit 1).
 
+Before a session that isn't a -p run, cop reminds you when scripts/friction-report.ps1 hasn't
+run for 7 days (it records each run in <COPILOT_HOME>/cop-friction-report.last).
+
 When an interactive work session ends (/exit or Ctrl+C), including one resumed with
 --resume <id>, cop checks NOTES.md against the handoff fingerprint and, if it's out of date, offers to run the handoff skill in that session,
 on a cheap model (HandoffModel in cop.psd1). When a research session ends, it prints how to
@@ -210,12 +213,11 @@ function Get-ModelArgs([string]$m) {
     return @('--model', $m)
 }
 
+$copilotHome = if ($env:COPILOT_HOME) { $env:COPILOT_HOME } else { Join-Path ([Environment]::GetFolderPath('UserProfile')) '.copilot' }
 if ($env:COP_CONF) {
     if (-not (Test-Path -LiteralPath $env:COP_CONF -PathType Leaf)) { Stop-Cop "COP_CONF=$env:COP_CONF not found" }
     $conf = $env:COP_CONF
 } else {
-    $userHome = [Environment]::GetFolderPath('UserProfile')
-    $copilotHome = if ($env:COPILOT_HOME) { $env:COPILOT_HOME } else { Join-Path $userHome '.copilot' }
     $conf = Join-Path $copilotHome 'cop.psd1'
 }
 
@@ -274,6 +276,22 @@ if ($ownsSession) {
 }
 $trackSession = $interactive -and $sessionId
 $offerHandoff = $trackSession -and $profileName -eq 'work'
+
+# Reminders for habits that are easy to forget, on stderr. Not in -p runs, which nobody watches.
+# A failure here never stops the session.
+if (-not $isPrompt) {
+    try {
+        # Weekly friction report: scripts/friction-report.ps1 rewrites this file on every run.
+        # The first cop run creates it, which starts the clock.
+        $reportStamp = Join-Path $copilotHome 'cop-friction-report.last'
+        if (-not (Test-Path -LiteralPath $reportStamp)) {
+            New-Item -ItemType File -Path $reportStamp -Force | Out-Null
+        } else {
+            $days = [int][math]::Floor(((Get-Date) - (Get-Item -LiteralPath $reportStamp).LastWriteTime).TotalDays)
+            if ($days -ge 7) { [Console]::Error.WriteLine("cop: the friction report last ran $days days ago. From your copilot-config checkout: ./scripts/friction-report.ps1") }
+        }
+    } catch {}
+}
 
 if ($dryRun) {
     Write-Output "# profile: $profileName   conf: $conf"

@@ -4,13 +4,14 @@ Summarize how Copilot CLI sessions went, from Copilot's own local session logs. 
 
   scripts/friction-report.ps1 [-Days 7]
 
-Read-only. Reads <COPILOT_HOME or ~/.copilot>/session-state/*/events.jsonl and
+Reads <COPILOT_HOME or ~/.copilot>/session-state/*/events.jsonl and
 <COPILOT_HOME>/friction-log.md (written by the friction-log skill), and prints a Markdown
 report: what you were prompted for, what was blocked, which skills ran, and what it cost.
 
 It reports command names, tool names, rule names, and counts only. It never prints command
 arguments, paths, repo or branch names, or file contents. It's meant to be read on the
-machine it runs on; nothing is sent anywhere.
+machine it runs on; nothing is sent anywhere. Its only write is <COPILOT_HOME>/cop-friction-report.last,
+which records the run so cop can remind you when a week has passed without one.
 #>
 param(
     [int]$Days = 7,
@@ -146,3 +147,6 @@ if (Test-Path $log) {
 } else {
     Write-Output "(no $log yet; the friction-log skill creates it)"
 }
+
+# Record this run for cop's weekly reminder.
+try { Set-Content -LiteralPath (Join-Path $CopilotHome 'cop-friction-report.last') -Value (Get-Date).ToString('o') -ErrorAction Stop } catch {}
