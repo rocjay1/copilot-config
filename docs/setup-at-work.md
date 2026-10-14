@@ -66,8 +66,9 @@ function cop { & (Join-Path ($env:COPILOT_HOME ?? "$([Environment]::GetFolderPat
    copilot mcp add --transport http atlassian https://mcp.atlassian.com/v2/mcp
    ```
 
-   Then start `cop`, run `/mcp`, and authenticate `atlassian`: you sign in to Atlassian and
-   approve access to your site. Your Atlassian admin can restrict MCP access; if sign-in is
+   Atlassian's sign-in and consent page opens in your browser on its own, before you start a
+   session (seen on 1.0.97). Approve access to your site. If it doesn't open, start `cop`, run
+   `/mcp`, and authenticate `atlassian` from there. Your Atlassian admin can restrict MCP access; if sign-in is
    refused, ask them. Calls draw on your organization's Rovo credits.
 3. Run `/mcp show atlassian` and compare its tools with the template. The template's names were
    checked on 1.0.97 against the v2 endpoint. If Atlassian has added tools, sort them into
