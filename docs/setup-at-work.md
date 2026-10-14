@@ -105,7 +105,7 @@ removes the notes.
 
 1. Offline checks, free: `./tests/cop.ps1` and `./tests/hook.ps1`. Both should report all cases
    passed.
-2. `./tests/smoke.ps1`: live permission checks against fakes, about 13 premium requests. It
+2. `./tests/smoke.ps1`: live permission checks against fakes, about 17 premium requests. It
    touches nothing real. **All cases must PASS, including H1** (the guardrail hook): on Windows,
    Copilot runs shell commands through PowerShell, and both the permission patterns and the hook
    were first verified on macOS. If a case fails, check its `out.jsonl` under the scratch

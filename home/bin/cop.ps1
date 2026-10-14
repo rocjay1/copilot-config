@@ -6,10 +6,13 @@ Launch Copilot CLI with an explicit permission profile. PowerShell 7+, Windows/m
 .DESCRIPTION
   cop [work|research] [--dry-run] [copilot args...]
 
-  work      (default) The reads below run without prompting. Everything else prompts as
-            usual: file edits, pushes, PRs, ticket changes.
+  work      (default) The reads below and local file edits run without prompting.
+            Everything else prompts: pushes, PRs, ticket changes, unlisted commands.
   research  Same reads. File edits and the listed external writes are denied outright;
             any other shell command still prompts, so read what you approve.
+
+Inside a session, /permissions allow-all, /permissions assisted, and /autopilot undo the work
+profile's prompts and batching. Research's deny rules and the guardrail hook still hold.
 
 The profile must be the first argument. Any other bare word there is an error, so a typo
 can't silently fall back to work.
@@ -77,8 +80,20 @@ $readTools = [System.Collections.Generic.List[string]]@(
     'shell(git status)', 'shell(git diff)', 'shell(git log)', 'shell(git show)',
     'shell(gh pr view)', 'shell(gh pr list)', 'shell(gh pr diff)', 'shell(gh pr checks)',
     'shell(gh issue view)', 'shell(gh issue list)',
-    'shell(gh run view)', 'shell(gh run list)'
+    'shell(gh run view)', 'shell(gh run list)',
+    # Read-only file utilities (bash, then PowerShell). Left out on purpose because they can
+    # write: sort -o, tree -o, find -delete/-exec, tee. Shell redirection (cat x > y) is
+    # covered by the work profile's `write` approval only inside the working folder, and never
+    # approves the command itself (tests/smoke.ps1 W9, W10).
+    'shell(cat)', 'shell(ls)', 'shell(head)', 'shell(tail)', 'shell(wc)', 'shell(grep)',
+    'shell(pwd)', 'shell(diff)',
+    'shell(Get-Content)', 'shell(Get-ChildItem)', 'shell(Select-String)', 'shell(Test-Path)',
+    'shell(Get-Item)', 'shell(Get-Location)', 'shell(Resolve-Path)'
 )
+
+# Pre-approved in work only. File edits stop prompting one by one; you review each batch's
+# diff instead (the batching rule in the personal instructions). Research denies writes.
+$workAllow = [System.Collections.Generic.List[string]]@('write')
 
 # Denied in research. Deny rules beat allow rules, even a later /allow-all or a saved approval.
 $researchDeny = [System.Collections.Generic.List[string]]@(
@@ -121,6 +136,8 @@ $copilotArgs = [System.Collections.Generic.List[string]]::new()
 foreach ($t in $readTools) { $copilotArgs.Add("--allow-tool=$t") }
 if ($profileName -eq 'research') {
     foreach ($t in $researchDeny) { $copilotArgs.Add("--deny-tool=$t") }
+} else {
+    foreach ($t in $workAllow) { $copilotArgs.Add("--allow-tool=$t") }
 }
 $copilotArgs.AddRange($passthru)
 

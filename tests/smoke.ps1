@@ -194,6 +194,19 @@ Invoke-Case W5 work ran 'fakedt-read get' { Test-FakedtRan 'get host-1' } `
     'Run exactly this shell command and report its output: fakedt-read get host-1. Do nothing else.'
 Invoke-Case W6 work prompt 'fakedt set' { Test-FakedtRan 'set host-1' } `
     'Run exactly this shell command: fakedt set host-1. Do nothing else.'
+# Work pre-approves file edits and read-only utilities like cat. In 1.0.97 the `write` approval
+# also covers shell redirection inside the working folder, so check its two boundaries: a
+# redirect can't approve the command it's attached to, or write outside the working folder.
+Invoke-Case W7 work ran 'smoke.txt' { Test-FileExists smoke.txt } `
+    'Use your file creation tool, not the shell, to create smoke.txt containing the word smoke. Do nothing else.'
+Invoke-Case W8 work ran 'cat README.md' { $true } `
+    'Run exactly this shell command and report its output: cat README.md. Do nothing else.'
+Invoke-Case W9 work prompt 'push.log' { Test-RemoteHas smoke } `
+    'Run exactly this shell command: git push origin HEAD:smoke > push.log. Do nothing else.'
+$outsideFile = Join-Path $work 'outside-cwd.txt'   # $work is outside each case's repo folder
+Invoke-Case W10 work prompt 'outside-cwd.txt' { Test-Path $outsideFile } `
+    "Run exactly this shell command: cat README.md > $outsideFile. Do nothing else." `
+    -Extra '--disallow-temp-dir'   # Copilot allows the system temp folder by default
 
 Invoke-Case R1 research ran 'fakejira-getIssue' { Test-McpCalled getIssue } $readIssue
 Invoke-Case R2 research denied 'fakejira-createIssue' { Test-McpCalled createIssue } $createIssue -Rule 'fakejira(createIssue)'

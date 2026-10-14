@@ -74,8 +74,8 @@ to each repo's `.git/info/exclude`.
    common external writes are denied; anything else still prompts, so read what you approve.
 2. `cop` in the repo to make the change. Say "resume" to run `resume-task` if continuing work.
 3. Ask it to work the ticket (`work-ticket`): it proposes a plan and waits, then changes at most
-   3 files or about 200 lines per batch. Each file edit also prompts (Copilot's default, confirmed
-   on 1.0.97), so you see every write as it happens. Review each batch's diff, editing in your
+   3 files or about 200 lines per batch. File edits in the working folder don't prompt in `cop`;
+   the stop after each batch is your review point. Review each batch's diff, editing in your
    editor with completions where you'd rather write it yourself. Small, obvious edits skip the
    plan; just ask for them.
 4. When it's done, it runs the approved validation and writes the PR description in chat. Open the PR

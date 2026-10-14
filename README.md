@@ -60,8 +60,8 @@ Autonomy is set by side effect, not by task:
 
 | Tier | Examples | Behavior |
 |---|---|---|
-| Read | Jira/Confluence reads, `gh pr view`, `git log`, monitoring CLIs | Pre-approved: runs freely |
-| Local write | File edits | Planned first, then small batches you review (personal instructions); each edit also prompts in `cop` |
+| Read | Jira/Confluence reads, `gh pr view`, `git log`, `cat`/`grep`, monitoring CLIs | Pre-approved: runs freely |
+| Local write | File edits in the working folder | Pre-approved in `cop`; planned first, then small batches whose diffs you review (personal instructions) |
 | External write | Tickets, comments, PRs, `git push`, branches, worktrees | One at a time, only when asked, with a prompt every time |
 
 `cop` makes this concrete. Allow and deny flags aren't saved between sessions, so it's the one
@@ -69,7 +69,7 @@ place the policy lives:
 
 ```powershell
 cop research   # reads pre-approved; file edits and listed external writes denied
-cop            # (work) reads pre-approved; every write prompts
+cop            # (work) reads and local edits pre-approved; external writes prompt
 cop --dry-run  # print the exact copilot command and flags
 ```
 
@@ -79,6 +79,12 @@ never committed. Start from `templates/cop.psd1.example`. `cop` refuses `--yolo`
 
 Research is not a sandbox: any shell command that isn't pre-approved or denied still prompts,
 so read what you approve there too.
+
+A prompt in `cop` means something outside your machine, or an unlisted command. Don't switch
+to `/permissions allow-all`, `/permissions assisted`, or `/autopilot on` in a work session:
+they remove those prompts and the stops between batches. Research's deny rules and the
+guardrail hook still hold in any mode. If a harmless command keeps prompting, add it to
+`ReadTools` in `cop.psd1` instead.
 
 ## Layers
 
@@ -126,7 +132,7 @@ On a machine with real systems to connect, continue with
 ```powershell
 ./tests/cop.ps1            # launcher checks, offline
 ./tests/hook.ps1           # guardrail hook against ~50 commands, offline
-./tests/smoke.ps1          # live Copilot sessions, ~13 premium requests
+./tests/smoke.ps1          # live Copilot sessions, ~17 premium requests
 ./tests/smoke.ps1 W2 R2    # selected live cases
 ```
 
@@ -167,6 +173,9 @@ files pulling in others via `@` includes. Run this first when behavior seems off
 - Repository hooks (`.github/hooks/`) did not fire in a folder Copilot hadn't been told to
   trust (1.0.97, `-p` mode). Don't count on a repo's own hooks until you've trusted the folder
   and seen them fire.
+- In 1.0.97, a `write` approval also covers shell redirection (`cmd > file`) inside the working
+  folder, despite what `copilot help permissions` says. It doesn't approve the command itself
+  or a path outside the folder (`tests/smoke.ps1` W9, W10). Recheck after `copilot update`.
 - For CLIs other than `git` and `gh`, `shell(...)` patterns match the command name only:
   `shell(mycli)` approves every subcommand, and `shell(mycli get)` matches nothing. To
   pre-approve reads from a CLI that can also write, approve a read-only shim

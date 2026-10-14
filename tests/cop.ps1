@@ -34,8 +34,10 @@ function Check([string]$label, [bool]$ok) {
 # Profiles
 $r = Invoke-Cop '--dry-run'
 Check 'default profile is work' ($r.Code -eq 0 -and $r.Out -match '# profile: work' -and $r.Out -notmatch '--deny-tool')
+Check 'work pre-approves file edits' ($r.Out -match '(?m)^--allow-tool=write$')
 $r = Invoke-Cop 'research', '--dry-run'
 Check 'research adds deny rules' ($r.Code -eq 0 -and $r.Out -match '# profile: research' -and $r.Out -match '--deny-tool=write' -and $r.Out -match '--deny-tool=shell\(git push\)')
+Check 'research does not pre-approve file edits' ($r.Out -notmatch '(?m)^--allow-tool=write$')
 Check 'research includes conf denies' ($r.Out -match [regex]::Escape('--deny-tool=fakejira(createIssue)'))
 Check 'conf reads are allowed' ($r.Out -match [regex]::Escape('--allow-tool=fakejira(getIssue)'))
 Check 'passthrough keeps -p and its value' ((Invoke-Cop 'work', '--dry-run', '-p', 'hello world').Out -match "(?m)^-p\r?\n^hello world")
