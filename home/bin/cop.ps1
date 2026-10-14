@@ -29,8 +29,8 @@ to change it (0 turns it off), pass --max-ai-credits yourself, or raise it in-se
 --dry-run prints the copilot command this would run, one argument per line, and exits.
 --check-notes reports whether NOTES.md is current (exit 0) or out of date (exit 1).
 
-When an interactive work session ends (/exit or Ctrl+C), cop checks NOTES.md against the
-handoff fingerprint and, if it's out of date, offers to run the handoff skill in that session,
+When an interactive work session ends (/exit or Ctrl+C), including one resumed with
+--resume <id>, cop checks NOTES.md against the handoff fingerprint and, if it's out of date, offers to run the handoff skill in that session,
 on a cheap model (HandoffModel in cop.psd1). When a research session ends, it prints how to
 continue that session with work permissions.
 
@@ -251,23 +251,35 @@ $ownModel = @($passthru | Where-Object { $_ -match '^--(model|auto-tier)(=.*)?$'
 if (-not $ownModel) { foreach ($a in (Get-ModelArgs $model)) { $copilotArgs.Add($a) } }
 $copilotArgs.AddRange($passthru)
 
-# For an interactive session that cop starts itself, pin its session ID. Afterwards:
+# For an interactive session that cop starts itself, pin its session ID; for one resumed by ID
+# (cop work --resume <id>), use that ID. Afterwards:
 # - work: if NOTES.md is out of date, offer to run the handoff skill in that same session
 #   (copilot --resume <id> -p), with the session's context;
 # - research: print how to continue the same session with work permissions.
 $isPrompt = @($passthru | Where-Object { $_ -in '-p', '--prompt' -or $_ -like '--prompt=*' }).Count -gt 0
 $ownsSession = @($passthru | Where-Object { $_ -match '^(-r|--resume|--continue|--session-id)(=.*)?$' }).Count -eq 0
-$pinSession = -not $isPrompt -and $ownsSession -and -not [Console]::IsInputRedirected
-$offerHandoff = $pinSession -and $profileName -eq 'work'
-if ($pinSession) {
-    $sessionId = [guid]::NewGuid().ToString()
-    $copilotArgs.Add('--session-id'); $copilotArgs.Add($sessionId)
+$interactive = -not $isPrompt -and -not [Console]::IsInputRedirected
+$sessionId = $null
+if ($ownsSession) {
+    if ($interactive) {
+        $sessionId = [guid]::NewGuid().ToString()
+        $copilotArgs.Add('--session-id'); $copilotArgs.Add($sessionId)
+    }
+} else {
+    # --resume=<id> or --resume <id>. A bare --resume (the picker) or --continue has no ID to use.
+    for ($i = 0; $i -lt $passthru.Count; $i++) {
+        if ($passthru[$i] -match '^(-r|--resume)=(.+)$') { $sessionId = $Matches[2] }
+        elseif ($passthru[$i] -in '-r', '--resume' -and $i + 1 -lt $passthru.Count -and $passthru[$i + 1] -notlike '-*') { $sessionId = $passthru[$i + 1] }
+    }
 }
+$trackSession = $interactive -and $sessionId
+$offerHandoff = $trackSession -and $profileName -eq 'work'
 
 if ($dryRun) {
     Write-Output "# profile: $profileName   conf: $conf"
     Write-Output 'copilot'
     $copilotArgs | Write-Output
+    if ($trackSession) { Write-Output "# on exit: $(if ($offerHandoff) { 'handoff check' } else { 'resume hint' }) for session $sessionId" }
     exit 0
 }
 
@@ -277,11 +289,11 @@ $env:PATH = $PSScriptRoot + [System.IO.Path]::PathSeparator + $env:PATH
 # Ctrl+C belongs to copilot; don't let it stop this script before the handoff check.
 $treatCtrlC = [Console]::TreatControlCAsInput
 try {
-    if ($pinSession) { [Console]::TreatControlCAsInput = $true }
+    if ($trackSession) { [Console]::TreatControlCAsInput = $true }
     & copilot @copilotArgs
     $code = $LASTEXITCODE
 } finally {
-    if ($pinSession) { [Console]::TreatControlCAsInput = $treatCtrlC }
+    if ($trackSession) { [Console]::TreatControlCAsInput = $treatCtrlC }
 }
 
 if ($offerHandoff) {
@@ -294,7 +306,7 @@ if ($offerHandoff) {
         }
     }
 }
-if ($pinSession -and $profileName -eq 'research') {
+if ($trackSession -and $profileName -eq 'research') {
     [Console]::Error.WriteLine("cop: to continue this session with work permissions (findings carry over): cop work --resume $sessionId")
 }
 exit $code

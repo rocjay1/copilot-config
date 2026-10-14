@@ -13,6 +13,8 @@
   in my current message.
 - Commit messages and PR titles follow Conventional Commits: `type(scope): summary`, e.g.
   `fix(s3): block public ACLs`. PRs are squash-merged, so the PR title is what lands on main.
+- To request a Copilot code review: `gh pr edit <number> --add-reviewer @copilot`. To work through
+  review comments, use the `pr-review` skill.
 - Infrastructure: plan and validate only. Never apply, destroy, or run mutating cloud CLI commands.
 - If `NOTES.md` exists at the repo root, read it before starting work.
 - When unsure about a requirement, ask one question rather than guessing.
