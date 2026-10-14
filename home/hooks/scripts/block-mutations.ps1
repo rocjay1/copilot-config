@@ -37,9 +37,6 @@ try {
 # Skip known non-shell tools. Unknown or missing names are scanned.
 if ($toolName -and $toolName -notmatch '(?i)bash|shell|powershell|pwsh|terminal|exec|command|run') { exit 0 }
 
-# Prefer the parsed command; fall back to the raw payload with JSON punctuation blanked out.
-$text = if ($command) { $command } else { $payload -replace '\\"', ' ' -replace '\\[ntr]', ' ' -replace '[{}\[\],:"]', ' ' }
-
 function Deny([string]$what) {
     if ($what.Length -gt 80) { $what = $what.Substring(0, 80) }
     [ordered]@{
@@ -49,57 +46,87 @@ function Deny([string]$what) {
     exit 0
 }
 
+# Blank out prose so it can't look like a command: heredoc and here-string bodies, and quoted
+# strings that contain whitespace (commit messages, PR bodies). A quoted single word survives,
+# so `& terraform 'apply'` is still caught. Commands inside the masked text, the argument of
+# sh -c / pwsh -Command and $(...) substitutions, are returned to be checked on their own.
+function Split-Command([string]$s) {
+    $inner = [System.Collections.Generic.List[string]]::new()
+    foreach ($m in [regex]::Matches($s, '\s-(?:c|Command)\s+(["''])(.*?)(?<!\\)\1', 'Singleline, IgnoreCase')) { $inner.Add($m.Groups[2].Value) }
+    foreach ($m in [regex]::Matches($s, '\$\(([^()]*)\)')) { $inner.Add($m.Groups[1].Value) }
+    $blankBody = { param($m) $m.Groups['pre'].Value + (' ' * $m.Groups['body'].Length) + $m.Groups['post'].Value }
+    $blankProse = { param($m) if ($m.Groups['body'].Value -match '\s') { $m.Groups['pre'].Value + (' ' * $m.Groups['body'].Length) + $m.Groups['post'].Value } else { $m.Value } }
+    $s = [regex]::Replace($s, '(?<pre><<-?\s*([''"]?)(?<tag>\w+)\1[^\n]*\n)(?<body>.*?)(?<post>\n\s*\k<tag>\s*(?:\n|$))', $blankBody, 'Singleline')
+    $s = [regex]::Replace($s, '(?<pre>@[''"]\r?\n)(?<body>.*?)(?<post>\r?\n[''"]@)', $blankBody, 'Singleline')
+    $s = [regex]::Replace($s, '(?<pre>")(?<body>(?:[^"\\`]|[\\`].)*)(?<post>")', $blankProse, 'Singleline')
+    $s = [regex]::Replace($s, "(?<pre>')(?<body>[^']*)(?<post>')", $blankProse)
+    return @{ Text = $s; Inner = $inner }
+}
+
 # One command's worth of text: stops at a command separator.
 $seg = '[^;|&\n]*?'
 # A tool name where a command starts, optionally with a Windows extension: terraform,
-# terraform.exe. "Where a command starts" means the start of the text, after a separator
-# (; & | ( { newline $( backtick), or inside sh -c "..." / pwsh -Command "...", after any
-# sudo/env/VAR=value prefixes. A tool name inside a commit message or other argument is not
-# a command and doesn't match.
-$cmdStart = '(?:^|[;&|(\n{`]|\$\(|\s-(?:c|Command)\s+[''"])\s*(?:(?:sudo|env|time|nohup|exec)\s+(?:-\S+\s+)*|\w+=\S*\s+)*[''"]?'
-# Without a parsed command there are no command boundaries to anchor to; match any word.
-if (-not $command) { $cmdStart = '(?<![\w.-])' }
-function Tool([string]$names) { $cmdStart + "(?:$names)(?:\.exe|\.cmd)?(?![\w.-])[''""]?" }
+# terraform.exe. "Where a command starts" means the start of the text or after a separator
+# (; & | ( { newline $( backtick), after any sudo/env/VAR=value prefixes.
+$cmdStart = '(?:^|[;&|(\n{`]|\$\()\s*(?:(?:sudo|env|time|nohup|exec)\s+(?:-\S+\s+)*|\w+=\S*\s+)*[''"]?'
+function Tool([string]$names) { $script:cmdStart + "(?:$names)(?:\.exe|\.cmd)?(?![\w.-])[''""]?" }
 # A verb as its own argument, optionally quoted: apply, 'apply', "apply".
 function Verb([string]$verbs) { "\s['""]?($verbs)['""]?(?=\s|$|[;|&)])" }
 
-$rules = @(
-    # Terraform / OpenTofu / Terragrunt state-changing commands
-    (Tool 'terraform|tofu|terragrunt') + $seg + (Verb 'apply|destroy|import|taint|untaint|force-unlock|apply-all|destroy-all|run-all')
-    (Tool 'terraform|tofu|terragrunt') + $seg + '\sstate\s+(rm|mv|push|replace-provider)(?=\s|$)'
-    # Kubernetes / Helm / helmfile
-    (Tool 'kubectl') + $seg + (Verb 'apply|delete|create|replace|patch|scale|drain|cordon|uncordon|edit|label|annotate|taint|exec|cp|set|autoscale|expose|run')
-    (Tool 'kubectl') + $seg + '\srollout\s+(restart|undo|pause|resume)(?=\s|$)'
-    (Tool 'helm') + $seg + (Verb 'install|upgrade|uninstall|delete|rollback')
-    (Tool 'helmfile') + $seg + (Verb 'apply|sync|destroy|delete|deps')
-    # git reads that write a file: git diff/log/show --output=<path>
-    (Tool 'git') + $seg + '\s--output(=|\s)'
-)
-
-foreach ($rule in $rules) {
-    $m = [regex]::Match($text, $rule, 'IgnoreCase')
-    if ($m.Success) { Deny (($m.Value -replace '["\\]', '').Trim()) }
-}
-
-# AWS CLI: allow read operations only; everything else is denied. Walks past global options
-# (with or without values) to find the service and operation.
 $awsReadOps = '^(describe|get|list|head|query|scan|search|lookup|wait|help|filter|validate|batch-get|select|tail)'
 $awsValueOpts = '^--(profile|region|output|query|endpoint-url|cli-read-timeout|cli-connect-timeout|ca-bundle|color|cli-binary-format)$'
-foreach ($m in [regex]::Matches($text, (Tool 'aws') + '(?<rest>[^;|&\n)]*)', 'IgnoreCase')) {
-    $tokens = @($m.Groups['rest'].Value.Trim() -split '\s+' | Where-Object { $_ } | ForEach-Object { $_.Trim('''', '"') })
-    $words = [System.Collections.Generic.List[string]]::new()
-    for ($i = 0; $i -lt $tokens.Count -and $words.Count -lt 2; $i++) {
-        $t = $tokens[$i]
-        if ($t.StartsWith('-')) { if ($t -match $awsValueOpts) { $i++ }; continue }
-        $words.Add($t.ToLowerInvariant())
+
+function Test-Text([string]$text) {
+    $rules = @(
+        # Terraform / OpenTofu / Terragrunt state-changing commands
+        (Tool 'terraform|tofu|terragrunt') + $seg + (Verb 'apply|destroy|import|taint|untaint|force-unlock|apply-all|destroy-all|run-all')
+        (Tool 'terraform|tofu|terragrunt') + $seg + '\sstate\s+(rm|mv|push|replace-provider)(?=\s|$)'
+        # Kubernetes / Helm / helmfile
+        (Tool 'kubectl') + $seg + (Verb 'apply|delete|create|replace|patch|scale|drain|cordon|uncordon|edit|label|annotate|taint|exec|cp|set|autoscale|expose|run')
+        (Tool 'kubectl') + $seg + '\srollout\s+(restart|undo|pause|resume)(?=\s|$)'
+        (Tool 'helm') + $seg + (Verb 'install|upgrade|uninstall|delete|rollback')
+        (Tool 'helmfile') + $seg + (Verb 'apply|sync|destroy|delete|deps')
+        # git reads that write a file: git diff/log/show --output=<path>
+        (Tool 'git') + $seg + '\s--output(=|\s)'
+    )
+    foreach ($rule in $rules) {
+        $m = [regex]::Match($text, $rule, 'IgnoreCase')
+        if ($m.Success) { Deny (($m.Value -replace '["\\]', '').Trim()) }
     }
-    if ($words.Count -lt 2) { continue }             # e.g. `aws --version`, `aws help`
-    $service, $op = $words[0], $words[1]
-    if ($service -eq 's3') {
-        if ($op -in 'ls', 'presign', 'help') { continue }
-        Deny "aws s3 $op"
+
+    # AWS CLI: allow read operations only; everything else is denied. Walks past global
+    # options (with or without values) to find the service and operation.
+    foreach ($m in [regex]::Matches($text, (Tool 'aws') + '(?<rest>[^;|&\n)]*)', 'IgnoreCase')) {
+        $tokens = @($m.Groups['rest'].Value.Trim() -split '\s+' | Where-Object { $_ } | ForEach-Object { $_.Trim('''', '"') })
+        $words = [System.Collections.Generic.List[string]]::new()
+        for ($i = 0; $i -lt $tokens.Count -and $words.Count -lt 2; $i++) {
+            $t = $tokens[$i]
+            if ($t.StartsWith('-')) { if ($t -match $awsValueOpts) { $i++ }; continue }
+            $words.Add($t.ToLowerInvariant())
+        }
+        if ($words.Count -lt 2) { continue }             # e.g. `aws --version`, `aws help`
+        $service, $op = $words[0], $words[1]
+        if ($service -eq 's3') {
+            if ($op -in 'ls', 'presign', 'help') { continue }
+            Deny "aws s3 $op"
+        }
+        if ($op -notmatch $awsReadOps) { Deny "aws $service $op" }
     }
-    if ($op -notmatch $awsReadOps) { Deny "aws $service $op" }
+}
+
+function Test-Command([string]$command, [int]$depth = 0) {
+    $split = Split-Command $command
+    Test-Text $split.Text
+    if ($depth -lt 3) { foreach ($c in $split.Inner) { Test-Command $c ($depth + 1) } }
+}
+
+if ($command) {
+    Test-Command $command
+} else {
+    # No parsed command: no quotes or boundaries to rely on, so match any word in the raw
+    # payload with JSON punctuation blanked out.
+    $cmdStart = '(?<![\w.-])'
+    Test-Text ($payload -replace '\\"', ' ' -replace '\\[ntr]', ' ' -replace '[{}\[\],:"]', ' ')
 }
 
 exit 0
