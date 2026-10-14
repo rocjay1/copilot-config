@@ -8,7 +8,7 @@ description: Re-orient at the start of a session on in-progress work. Use when a
 Gather state without changing anything:
 
 1. Read `NOTES.md` at the repo root, if present.
-2. Run `git status`, `git log --oneline -10`, and `git branch --show-current`.
+2. Run `git status` (it names the current branch) and `git log --oneline -10`.
 3. If the GitHub CLI is available, check for an open PR on the current branch.
 
 Then reply with:

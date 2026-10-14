@@ -9,7 +9,7 @@ repo is built around keeping that surface small and putting each rule in exactly
 ## Principles
 
 1. **Small always-on budget.** Instruction files load into every session. Budgets:
-   personal ≤ 300 words, repo root ≤ 500 words. `scripts/audit.sh` checks this.
+   personal ≤ 300 words, repo root ≤ 500 words. `scripts/audit.ps1` checks this.
 2. **One home per rule.** Copilot CLI reads `.github/copilot-instructions.md`, `AGENTS.md`,
    `CLAUDE.md`, `.claude/CLAUDE.md`, `GEMINI.md`, and `*.instructions.md` files, plus skills from
    `.github/`, `.claude/`, and `.agents/` directories, **and combines them all**. Duplicated or
@@ -26,27 +26,59 @@ repo is built around keeping that surface small and putting each rule in exactly
 
 ```
 copilot-config/
-├── home/                         → installed to ~/.copilot (or $COPILOT_HOME)
+├── home/                         → installed to ~/.copilot (or $env:COPILOT_HOME)
 │   ├── copilot-instructions.md   personal, always-on, every repo
+│   ├── bin/cop.ps1               launcher with work / research permission profiles
 │   ├── skills/
+│   │   ├── work-ticket/SKILL.md  ticket → plan → reviewable batches → PR description in chat
 │   │   ├── handoff/SKILL.md      write NOTES.md before /compact or /clear
 │   │   └── resume-task/SKILL.md  re-orient at session start
 │   └── hooks/
 │       ├── guardrails.json       preToolUse hook registration
-│       └── scripts/block-mutations.sh
+│       └── scripts/block-mutations.ps1
 ├── repo-templates/               → copied into a team repo by PR; never installed
 │   └── .github/
 │       ├── copilot-instructions.md
 │       ├── instructions/terraform.instructions.md
 │       └── agents/reviewer.agent.md
-├── templates/                    → blanks for new skills, instructions, agents
+├── templates/                    → blanks for new skills, instructions, agents, cop.psd1
+├── tests/                       → smoke.ps1 (live), hook.ps1 and cop.ps1 (offline)
+├── docs/setup-at-work.md         → finish setup on a machine with the real systems
 └── scripts/
-    ├── install.sh                copy-install home/ (with --dry-run)
-    └── audit.sh                  inventory what Copilot will load for a repo
+    ├── install.ps1               copy-install home/ (with -DryRun)
+    └── audit.ps1                 inventory what Copilot will load for a repo
 ```
+
+All scripts are PowerShell 7 (`pwsh`) and run on Windows, macOS, and Linux.
 
 Templates live outside any discovered directory on purpose: a template inside
 `skills/` or `agents/` would be loaded as a real skill or agent.
+
+## Control model
+
+Autonomy is set by side effect, not by task:
+
+| Tier | Examples | Behavior |
+|---|---|---|
+| Read | Jira/Confluence reads, `gh pr view`, `git log`, monitoring CLIs | Pre-approved: runs freely |
+| Local write | File edits | Planned first, then small batches you review (personal instructions) |
+| External write | Tickets, comments, PRs, `git push`, branches, worktrees | One at a time, only when asked, with a prompt every time |
+
+`cop` makes this concrete. Allow and deny flags aren't saved between sessions, so it's the one
+place the policy lives:
+
+```powershell
+cop research   # reads pre-approved; file edits and listed external writes denied
+cop            # (work) reads pre-approved; every write prompts
+cop --dry-run  # print the exact copilot command and flags
+```
+
+Site-specific tools (your MCP servers and CLIs) go in `~/.copilot/cop.psd1`, a data file that is
+never committed. Start from `templates/cop.psd1.example`. `cop` refuses `--yolo`, `--allow-all*`,
+`--assisted-approval`, and autopilot, and ignores the environment variables that do the same.
+
+Research is not a sandbox: any shell command that isn't pre-approved or denied still prompts,
+so read what you approve there too.
 
 ## Layers
 
@@ -73,18 +105,41 @@ None of the above / can't name the failure?    → don't add it
 
 ## Install
 
-```bash
-scripts/install.sh --dry-run   # show what would change
-scripts/install.sh             # copy home/ into ~/.copilot (existing files backed up)
+```powershell
+./scripts/install.ps1 -DryRun   # show what would change
+./scripts/install.ps1           # copy home/ into ~/.copilot (existing files backed up)
 ```
 
 Copy-install, not symlinks: the checkout and the runtime stay independent.
-Honors `$COPILOT_HOME` if set.
+Honors `$env:COPILOT_HOME` if set. Then add the launcher to your PowerShell profile
+(`notepad $PROFILE`; see [docs/setup-at-work.md](docs/setup-at-work.md) if the file doesn't exist yet):
+
+```powershell
+function cop { & (Join-Path ($env:COPILOT_HOME ?? "$([Environment]::GetFolderPath('UserProfile'))/.copilot") 'bin/cop.ps1') @args }
+```
+
+On a machine with real systems to connect, continue with
+[docs/setup-at-work.md](docs/setup-at-work.md).
+
+## Test
+
+```powershell
+./tests/cop.ps1            # launcher checks, offline
+./tests/hook.ps1           # guardrail hook against ~50 commands, offline
+./tests/smoke.ps1          # live Copilot sessions, ~13 premium requests
+./tests/smoke.ps1 W2 R2    # selected live cases
+```
+
+The smoke test runs real Copilot CLI sessions against a fake MCP server, a fake CLI, and a local git remote, in
+an isolated `COPILOT_HOME`. It checks that reads run, writes prompt in work and are denied in
+research, and that the guardrail hook blocks `terraform apply`. Run it on every new machine
+(Windows runs shell commands through PowerShell, which can differ from macOS) and again after
+`copilot update`.
 
 ## Audit
 
-```bash
-scripts/audit.sh /path/to/repo
+```powershell
+./scripts/audit.ps1 /path/to/repo
 ```
 
 Lists every instruction file, skill, agent, hook config, and MCP server Copilot CLI would
@@ -104,9 +159,18 @@ files pulling in others via `@` includes. Run this first when behavior seems off
 
 - The guardrail hook is a best-effort pattern blocklist, not a security boundary. It catches
   common mutating Terraform, AWS, kubectl, and Helm commands, but a command written in an
-  unexpected form, or run through a script or another tool, can get past it. It has not yet
-  been verified in a live Copilot CLI session. Keep real credentials scoped so that the
-  agent can't make changes even if the hook misses one.
+  unexpected form, or run through a script or another tool, can get past it. Verified in
+  Copilot CLI 1.0.97 as a user-level hook (`tests/smoke.ps1` H1). It starts `pwsh`, so it
+  needs PowerShell 7 on `PATH`; a hook that times out fails open (the call goes through the
+  normal permission flow). Keep real credentials scoped so that the agent can't make changes
+  even if the hook misses one.
+- Repository hooks (`.github/hooks/`) did not fire in a folder Copilot hadn't been told to
+  trust (1.0.97, `-p` mode). Don't count on a repo's own hooks until you've trusted the folder
+  and seen them fire.
+- For CLIs other than `git` and `gh`, `shell(...)` patterns match the command name only:
+  `shell(mycli)` approves every subcommand, and `shell(mycli get)` matches nothing. To
+  pre-approve reads from a CLI that can also write, approve a read-only shim
+  (see `templates/cop.psd1.example`).
 - Instruction changes take effect in the **next** session, not the current one.
   After adding a skill mid-session, run `/skills reload`.
 - A report on the copilot-cli tracker (issue #3013) says `preToolUse` hooks don't fire for

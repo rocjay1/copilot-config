@@ -51,12 +51,23 @@ mid-debug hypotheses. `copilot --continue` resumes the most recent session;
 
 ## Daily loop
 
-1. `copilot` in the repo. Instructions load automatically; say "resume" to run the
-   `resume-task` skill if continuing work.
-2. Plan mode for anything non-trivial. After exploring, check `/context`, then `/compact`
-   with focus instructions.
-3. `/fork "name"` for alternatives; `/fleet` for parallelizable work.
-4. Run `handoff` to update `NOTES.md`, commit, then `/clear`.
+One ticket = one branch = one session = one `NOTES.md`. You create or link the ticket; the
+agent only reads it. `NOTES.md` is your working state, not part of the change: keep it out of
+commits by adding it once to your global gitignore (`git config --global core.excludesFile`) or
+to each repo's `.git/info/exclude`.
+
+1. `cop research` to investigate: tickets, logs, monitoring, PR history. It can't edit files, and the
+   common external writes are denied; anything else still prompts, so read what you approve.
+2. `cop` in the repo to make the change. Say "resume" to run `resume-task` if continuing work.
+3. Ask it to work the ticket (`work-ticket`): it proposes a plan and waits, then changes at most
+   3 files or about 200 lines per batch. Review each batch's diff, editing in your editor with
+   completions where you'd rather write it yourself.
+4. When it's done, it runs the approved validation and writes the PR description in chat. Open the PR
+   (or approve the prompt), then iterate on Copilot's review.
+5. Run `handoff` to update `NOTES.md`, commit the change itself if you're ready, then `/clear`.
+
+Use `/fork "name"` to compare alternatives. Avoid `/fleet` for changes you need to review:
+it produces a lot at once, and hooks reportedly don't guard subagents.
 
 ## Configuration layers
 
@@ -96,7 +107,7 @@ Can't name the failure it prevents?            → don't add it
 
 ## Diagnosing over-engineered config
 
-1. Run `scripts/audit.sh /path/to/repo`. Compare always-on words to budget
+1. Run `scripts/audit.ps1 /path/to/repo`. Compare always-on words to budget
    (personal ≤ 300, repo ≤ 500).
 2. Look for the same topic in multiple files, especially `AGENTS.md` / `CLAUDE.md`.
 3. Look for skills with overlapping descriptions or duplicate names across locations.
@@ -105,8 +116,10 @@ Can't name the failure it prevents?            → don't add it
 
 ## Open items
 
-- Verify the guardrail hook in a real session: ask Copilot to run `terraform apply` in a
-  scratch directory and confirm it's denied (tool names couldn't be confirmed offline).
+- Rerun `tests/smoke.ps1` after `copilot update`. It covers the profiles' allow and deny rules
+  and the guardrail hook (verified on 1.0.97 as a user-level hook).
+- Confirm the Atlassian tool names in `templates/cop.psd1.example` against `/mcp show` on a
+  real site.
 - Verify the `tools:` names in `reviewer.agent.md` for your CLI version.
 - Run the audit on the existing work config and review it alongside a screenshot of the
   behavior.
