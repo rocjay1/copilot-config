@@ -92,9 +92,10 @@ own permissions or hooks. It also denies edits to `.git` and `.terraform` folder
 files), which could otherwise make a pre-approved read like `git diff` or `tf-check validate`
 run code.
 
-Every `cop` session starts on **Auto, balance tier**, with a soft cap of 100 AI credits;
-`/model` and `/limits` still change them mid-session, and `Model` / `MaxAiCredits` in
-`cop.psd1` change the defaults.
+`cop` sessions start on whatever model Copilot's own settings name, as plain `copilot` does;
+the one-time setup under [Install](#install) sets that to **Auto, balance tier**. `cop` adds
+only a soft cap of 100 AI credits, which `MaxAiCredits` in `cop.psd1` changes. `/model` and
+`/limits` still change both mid-session. An old `Model` key in `cop.psd1` is ignored.
 
 Research is not a sandbox: any shell command that isn't pre-approved or denied still prompts,
 so read what you approve there too.
@@ -141,6 +142,14 @@ Honors `$env:COPILOT_HOME` if set. Then add the launcher to your PowerShell prof
 
 ```powershell
 function cop { & (Join-Path ($env:COPILOT_HOME ?? "$([Environment]::GetFolderPath('UserProfile'))/.copilot") 'bin/cop.ps1') @args }
+```
+
+Once per machine, set the default model in Copilot's own settings (`~/.copilot/settings.json`;
+`install.ps1` leaves that file alone so it never overwrites `/settings` changes):
+
+```powershell
+copilot config model auto
+copilot config autoTier balance
 ```
 
 On a machine with real systems to connect, continue with

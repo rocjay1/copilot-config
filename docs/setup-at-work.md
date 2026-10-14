@@ -59,6 +59,17 @@ Add this line, then open a new terminal:
 function cop { & (Join-Path ($env:COPILOT_HOME ?? "$([Environment]::GetFolderPath('UserProfile'))/.copilot") 'bin/cop.ps1') @args }
 ```
 
+Set the default model once. `cop` passes no model flag, so sessions use Copilot's own setting,
+which these commands write to `~/.copilot/settings.json` (install.ps1 never touches that file):
+
+```powershell
+copilot config model auto
+copilot config autoTier balance
+```
+
+`/model` still switches mid-session. If your organization disables Auto, run
+`copilot config model <id>` with a model it allows instead.
+
 Keep `NOTES.md` (written by `handoff`) out of every repo's commits by adding it to your global
 git ignore file. This uses the existing file if you have one:
 

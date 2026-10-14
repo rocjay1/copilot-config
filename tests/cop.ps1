@@ -89,15 +89,15 @@ $r = Invoke-Cop '--dry-run' -Env @{ COP_CONF = $keyConf }
 Check 'accepts MaxAiCredits; ignores the old HandoffModel key with a notice' ($r.Code -eq 0 -and $r.Out -match "(?m)^150\r?$" -and $r.Err -match 'ignoring HandoffModel')
 Remove-Item $keyConf
 
-# Default model
+# Model: left to Copilot's own settings
 $r = Invoke-Cop '--dry-run'
-Check 'starts on Auto, balance tier' ($r.Out -match "(?m)^--model\r?\nauto\r?\n--auto-tier\r?\nbalance\r?$")
-Check 'your own --model wins' (@([regex]::Matches((Invoke-Cop 'work', '--dry-run', '--model', 'gpt-x').Out, '--model')).Count -eq 1)
+Check 'adds no --model or --auto-tier' ($r.Out -notmatch '(?m)^--(model|auto-tier)')
+$r = Invoke-Cop 'work', '--dry-run', '--model', 'gpt-x'
+Check 'your own --model passes through' (@([regex]::Matches($r.Out, '(?m)^--model\r?$')).Count -eq 1 -and $r.Out -match "(?m)^--model\r?\ngpt-x\r?$")
 $mConf = Join-Path ([System.IO.Path]::GetTempPath()) "cop-model-$([System.IO.Path]::GetRandomFileName()).psd1"
-Set-Content $mConf "@{ Model = '' }"
-Check "Model = '' leaves the model to Copilot" ((Invoke-Cop '--dry-run' -Env @{ COP_CONF = $mConf }).Out -notmatch '--model')
-Set-Content $mConf "@{ Model = 'claude-sonnet-5.5' }"
-Check 'Model accepts a model id' ((Invoke-Cop '--dry-run' -Env @{ COP_CONF = $mConf }).Out -match "(?m)^--model\r?\nclaude-sonnet-5\.5\r?$")
+Set-Content $mConf "@{ Model = 'auto-balance' }"
+$r = Invoke-Cop '--dry-run' -Env @{ COP_CONF = $mConf }
+Check 'ignores the old Model key with a notice' ($r.Code -eq 0 -and $r.Err -match 'ignoring Model' -and $r.Out -notmatch '(?m)^--model')
 Remove-Item $mConf
 
 # AI credit cap

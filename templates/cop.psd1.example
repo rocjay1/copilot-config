@@ -6,7 +6,8 @@
 #   ReadTools     run without prompting in both profiles. Reads only.
 #   ResearchDeny  denied in the research profile. List every write tool.
 #   MaxAiCredits  optional soft cap on AI credits per session (default 100, 0 = off).
-#   Model         optional model sessions start on (default 'auto-balance').
+#
+# The model isn't set here: cop uses Copilot's own setting (`copilot config model`).
 #
 # Anything in neither list prompts, which is the safe default. A misspelled name fails the
 # same way: the tool prompts instead of being allowed or denied. Add a read here only after
@@ -64,11 +65,6 @@
 
     # Soft cap on AI credits per session; cop's default is 100. 0 turns it off; the minimum is 30.
     # MaxAiCredits = 150
-
-    # Model every cop session starts on: 'auto-balance' (default), 'auto-efficiency',
-    # 'auto-intelligence', a model id, or '' for Copilot's own saved setting (e.g. if your org
-    # disables Auto). /model still switches mid-session.
-    # Model = 'auto-balance'
 
     ResearchDeny = @(
         'atlassian(createJiraIssue)'
