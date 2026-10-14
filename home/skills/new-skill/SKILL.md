@@ -49,5 +49,5 @@ Gather first:
 Stop conditions:
 - Over about 450 words, or more than one task: propose splitting it.
 - Don't edit skills installed from copilot-config (`work-ticket`, `pr-review`, `handoff`,
-  `resume-task`, `friction-log`, `new-skill`, `onboard-tool`) in `<COPILOT_HOME>/skills`; the next install
-  overwrites them. Change those in the copilot-config repo by PR.
+  `resume-task`, `friction-log`, `new-skill`, `onboard-tool`) in `<COPILOT_HOME>/skills`; the
+  next install overwrites them. Change those in the copilot-config repo by PR.
