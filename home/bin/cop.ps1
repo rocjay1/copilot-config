@@ -32,6 +32,8 @@ environment variables that do the same (COPILOT_ALLOW_ALL, COPILOT_ASSISTED_APPR
 `copilot` directly if you really mean it.
 
 No param() block on purpose: every other argument, including -p, passes through to copilot.
+PowerShell splits an argument that starts with - and contains a colon (-name:value syntax),
+so put rules like shell(git:*) in cop.psd1 rather than on the command line.
 #>
 
 $ErrorActionPreference = 'Stop'
@@ -134,14 +136,15 @@ foreach ($var in 'COPILOT_ALLOW_ALL', 'COPILOT_ASSISTED_APPROVAL') {
     }
 }
 
-# Reads that never change anything. git and gh match on the first-level subcommand.
+# Reads that never change anything. git rules match the first-level subcommand; gh rules
+# need the :* prefix form for deeper subcommands (gh pr view:*).
 # Left out on purpose: `git branch` and `gh api`, which can also write. The guardrail hook
 # blocks `git ... --output`, the one way these git reads can write a file.
 $readTools = [System.Collections.Generic.List[string]]@(
     'shell(git status)', 'shell(git diff)', 'shell(git log)', 'shell(git show)',
-    'shell(gh pr view)', 'shell(gh pr list)', 'shell(gh pr diff)', 'shell(gh pr checks)',
-    'shell(gh issue view)', 'shell(gh issue list)',
-    'shell(gh run view)', 'shell(gh run list)', 'shell(git hash-object)',
+    'shell(gh pr view:*)', 'shell(gh pr list:*)', 'shell(gh pr diff:*)', 'shell(gh pr checks:*)',
+    'shell(gh issue view:*)', 'shell(gh issue list:*)',
+    'shell(gh run view:*)', 'shell(gh run list:*)', 'shell(git hash-object)',
     # Read-only file utilities (bash, then PowerShell). Left out on purpose because they can
     # write: sort -o, tree -o, find -delete/-exec, tee. Shell redirection (cat x > y) is
     # covered by the work profile's `write` approval only inside the working folder, and never
@@ -163,13 +166,15 @@ $researchDeny = [System.Collections.Generic.List[string]]@(
     'shell(git clean)', 'shell(git checkout)', 'shell(git switch)', 'shell(git restore)',
     'shell(git stash)', 'shell(git tag)', 'shell(git remote)', 'shell(git config)',
     'shell(git branch)', 'shell(git merge)', 'shell(git rebase)',
-    'shell(gh pr create)', 'shell(gh pr merge)', 'shell(gh pr comment)', 'shell(gh pr edit)',
-    'shell(gh pr review)', 'shell(gh pr close)', 'shell(gh pr ready)', 'shell(gh pr reopen)',
-    'shell(gh issue create)', 'shell(gh issue comment)', 'shell(gh issue edit)',
-    'shell(gh issue close)', 'shell(gh issue delete)', 'shell(gh issue reopen)',
+    # gh rules need the :* prefix form; Copilot matches `gh pr create` as `gh pr`, so an exact
+    # 'shell(gh pr create)' never matches (tests/smoke.ps1 R7).
+    'shell(gh pr create:*)', 'shell(gh pr merge:*)', 'shell(gh pr comment:*)', 'shell(gh pr edit:*)',
+    'shell(gh pr review:*)', 'shell(gh pr close:*)', 'shell(gh pr ready:*)', 'shell(gh pr reopen:*)',
+    'shell(gh issue create:*)', 'shell(gh issue comment:*)', 'shell(gh issue edit:*)',
+    'shell(gh issue close:*)', 'shell(gh issue delete:*)', 'shell(gh issue reopen:*)',
     'shell(gh release:*)', 'shell(gh workflow:*)', 'shell(gh repo:*)', 'shell(gh secret:*)',
     'shell(gh variable:*)', 'shell(gh gist:*)', 'shell(gh label:*)',
-    'shell(gh api)'
+    'shell(gh api:*)'
 )
 
 if ($env:COP_CONF) {

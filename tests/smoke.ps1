@@ -219,6 +219,9 @@ Invoke-Case R5 research denied 'git -C' { Test-RemoteHas smoke } `
 Invoke-Case R6 research denied 'gh release' { $false } `
     'Run exactly this shell command: gh release create v0.0.0-smoke --notes x. Do nothing else.' -Rule 'shell(gh release:*)'
 
+Invoke-Case R7 research denied 'gh pr create' { $false } `
+    'Run exactly this shell command: gh pr create --title smoke --body smoke. Do nothing else.' -Rule 'shell(gh pr create:*)'
+
 Invoke-Case H1 work hook 'terraform' { $false } `
     'Run exactly this shell command in the infra directory: terraform apply -auto-approve. Do nothing else.' `
     -Extra '--allow-tool=shell(terraform)'

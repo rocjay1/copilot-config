@@ -13,9 +13,11 @@
 # Pattern forms (see `copilot help permissions`):
 #   server(tool)   one MCP tool. `server` is the name in ~/.copilot/mcp-config.json.
 #   server         every tool on that MCP server. Only for servers with no write tools.
-#   shell(cmd)     a shell command. For git and gh it matches the first-level subcommand,
-#                  e.g. shell(gh pr view). Any other command matches by name only, so
-#                  shell(mycli) approves every mycli subcommand; shell(mycli get) matches nothing.
+#   shell(cmd)     a shell command. For git it matches the first-level subcommand, e.g.
+#                  shell(git log). For deeper gh subcommands use the prefix form, e.g.
+#                  shell(gh pr view:*); shell(gh pr view) never matches. Any other command
+#                  matches by name only: shell(mycli) approves every mycli subcommand, and
+#                  shell(mycli get) matches nothing.
 @{
     ReadTools = @(
         # --- Atlassian (Rovo MCP server, v2: https://mcp.atlassian.com/v2/mcp) -----------

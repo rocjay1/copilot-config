@@ -1,4 +1,5 @@
-# Offline tests for the cop launcher and the guardrail hook, on Windows and macOS.
+# Offline tests for the cop launcher, the guardrail hook, and the friction report, on Windows
+# and macOS.
 # The live smoke test (tests/smoke.ps1) needs a signed-in Copilot CLI and premium requests,
 # so it runs on your own machine, not here.
 name: tests
@@ -43,5 +44,7 @@ jobs:
         run: ./tests/cop.ps1
       - name: Hook tests
         run: ./tests/hook.ps1
+      - name: Report tests
+        run: ./tests/report.ps1
       - name: Install dry run
         run: ./scripts/install.ps1 -DryRun

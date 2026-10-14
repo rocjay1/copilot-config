@@ -130,4 +130,6 @@ It worked if:
 - you didn't lose track of the work across a `/clear`;
 - it wasn't noticeably slower than before.
 
-Afterwards, add to `ReadTools` only the reads that actually prompted and annoyed you.
+Log friction as it happens ("log friction: …"). After a week, run
+`./scripts/friction-report.ps1` and change only what it shows; see "Tuning it in the first
+weeks" in `docs/working-with-copilot-cli.md`.
