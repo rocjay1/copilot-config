@@ -52,7 +52,6 @@ function Get-NotesStatus {
         if ($path -eq 'NOTES.md') { continue }
         $current[$path] = if ($xy -match 'D') { 'deleted' } else { $null }
     }
-    if ($current.Count -eq 0) { return [pscustomobject]@{ Stale = $false; Reason = 'no uncommitted changes' } }
     $toHash = @($current.Keys | Where-Object { -not $current[$_] })
     if ($toHash.Count) {
         $hashes = @(& git -C $root hash-object -- @toHash)
@@ -61,17 +60,28 @@ function Get-NotesStatus {
 
     $notes = Join-Path $root 'NOTES.md'
     if (-not (Test-Path -LiteralPath $notes)) {
+        if ($current.Count -eq 0) { return [pscustomobject]@{ Stale = $false; Reason = 'nothing uncommitted and no NOTES.md' } }
         return [pscustomobject]@{ Stale = $true; Reason = "$($current.Count) uncommitted files and no NOTES.md" }
     }
-    $recorded = @{}; $inState = $false; $hasState = $false
+    $recorded = @{}; $recordedHead = $null; $inState = $false; $hasState = $false
     foreach ($line in Get-Content -LiteralPath $notes) {
         if ($line -match '^##\s+State\b') { $inState = $true; $hasState = $true; continue }
         if ($line -match '^##\s') { $inState = $false; continue }
+        # "- HEAD abc1234" (current format) or "- clean at abc1234" (older notes)
+        if ($inState -and $line -match '^\s*-\s*(?:HEAD|clean at)\s+`?([0-9a-f]{7,40})') {
+            $recordedHead = $Matches[1].Substring(0, 7); continue
+        }
         if ($inState -and $line -match '^\s*-\s*`([^`]+)`.*?\b([0-9a-f]{7,40}|deleted)\b') {
             $recorded[$Matches[1]] = if ($Matches[2] -eq 'deleted') { 'deleted' } else { $Matches[2].Substring(0, 7) }
         }
     }
     if (-not $hasState) { return [pscustomobject]@{ Stale = $true; Reason = 'NOTES.md has no State section' } }
+    if ($recordedHead) {
+        $head = & git -C $root rev-parse --short=7 HEAD 2>$null
+        if ($head -and -not "$head".StartsWith($recordedHead)) {
+            return [pscustomobject]@{ Stale = $true; Reason = "new commits since the last handoff ($recordedHead -> $head)" }
+        }
+    }
     $changed = @($current.Keys | Where-Object { $recorded[$_] -ne $current[$_] })
     $gone = @($recorded.Keys | Where-Object { -not $current.Contains($_) })
     $n = $changed.Count + $gone.Count

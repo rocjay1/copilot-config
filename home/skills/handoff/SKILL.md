@@ -26,13 +26,14 @@ The very next concrete step, then the remaining steps in order.
 Exact error strings, version pins, resource addresses, commands that must or must not be run, and anything surprising.
 
 ## State
-A fingerprint of uncommitted work, so `resume-task` can spot edits made after the handoff.
-Write it last, after every other file change:
-1. List changed and untracked files: `git status --porcelain --untracked-files=all`. Skip
+A fingerprint of the work, so `resume-task` and `cop` can spot commits and edits made after the
+handoff. Write it last, after every other file change:
+1. First bullet: `- HEAD <short commit hash>` from `git log --oneline -1`.
+2. List changed and untracked files: `git status --porcelain --untracked-files=all`. Skip
    `NOTES.md`.
-2. Hash them in one call: `git hash-object -- <file> <file> ...`.
-3. One bullet per file: `` `path` `` and the first 7 characters of its hash, or `deleted`.
-If nothing is uncommitted, write `- clean at <short commit hash>`.
+3. Hash them in one call: `git hash-object -- <file> <file> ...`.
+4. One bullet per file: `` `path` `` and the first 7 characters of its hash, or `deleted`.
+If nothing is uncommitted, the HEAD bullet is the whole section.
 
 Rules:
 - Keep it under 300 words, not counting State. A new session reads all of it.

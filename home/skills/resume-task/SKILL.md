@@ -11,7 +11,7 @@ Gather state without changing anything:
 2. Run `git status` (it names the current branch) and `git log --oneline -10`.
 3. If NOTES.md has a State section, recompute it the same way: `git status --porcelain
    --untracked-files=all` (skip `NOTES.md`), then `git hash-object -- <files>`. Compare the
-   first 7 characters per file.
+   first 7 characters per file, and compare the HEAD bullet with `git log --oneline -1`.
 4. If the GitHub CLI is available, check for an open PR on the current branch.
 5. List other worktrees: `git worktree list --porcelain`. For each one other than this, run
    `git -C <path> status --porcelain` and check whether `<path>/NOTES.md` exists. If the list
@@ -23,6 +23,7 @@ Then reply with:
 - **Next step:** the single next action, taken from NOTES.md if it says so.
 - **Mismatches:** anything that contradicts NOTES.md. List every file whose hash changed, that
   appeared, or that disappeared since the State fingerprint, and say "changed since handoff".
+  If HEAD moved, list the commits since the recorded one (`git log --oneline <recorded>..HEAD`).
   Also flag a branch the notes don't name. If there's no State section, say drift inside
   uncommitted files can't be checked.
 - **Other worktrees:** one line each for those with uncommitted changes or a NOTES.md: path,

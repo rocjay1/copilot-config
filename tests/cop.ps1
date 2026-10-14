@@ -94,6 +94,15 @@ Set-Content (Join-Path $repo NOTES.md) "## Goal`n- test`n`n## State`n- ``a.tf`` 
 Notes 'matching fingerprint is current' 0
 Add-Content (Join-Path $repo b.tf) 'drift'
 Notes 'edit after handoff is stale' 1
+& git -C $repo add a.tf b.tf; & git -C $repo -c user.name=t -c user.email=t@example.invalid commit -qm work
+$head = (& git -C $repo rev-parse --short=7 HEAD)
+Set-Content (Join-Path $repo NOTES.md) "## Goal`n- test`n`n## State`n- HEAD $head`n"
+Notes 'clean tree at the recorded HEAD is current' 0
+Set-Content (Join-Path $repo c.tf) 'c'
+& git -C $repo add c.tf; & git -C $repo -c user.name=t -c user.email=t@example.invalid commit -qm more
+Notes 'new commit after handoff is stale' 1
+Set-Content (Join-Path $repo NOTES.md) "## Goal`n- test`n`n## State`n- clean at $(& git -C $repo rev-parse --short=7 HEAD)`n"
+Notes 'older clean-at format at HEAD is current' 0
 Remove-Item -Recurse -Force $repo
 
 Write-Output ''
