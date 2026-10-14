@@ -111,7 +111,8 @@ removes the notes.
    touches nothing real. **All cases must PASS, including H1** (the guardrail hook): on Windows,
    Copilot runs shell commands through PowerShell, and both the permission patterns and the hook
    were first verified on macOS. If a case fails, check its `out.jsonl` under the scratch
-   directory the test prints, and don't rely on that protection until it passes.
+   directory the test prints, and don't rely on that protection until it passes. A full pass
+   records the Copilot CLI version; `cop` warns until one exists, and again after any update.
 3. With the real names, **reads only**:
    - `cop research`, then ask for a Jira search. It should run without a prompt.
    - `cop`, then ask for the same search. It should run without a prompt.
