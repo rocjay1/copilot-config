@@ -78,7 +78,10 @@ to each repo's `.git/info/exclude`.
    approve. When you `/exit`, `cop` prints `cop work --resume <id>`: run it to continue the same
    session, findings included, with work permissions. The resumed session gets the same
    handoff check on exit as one `cop` started.
-2. `cop` in the repo to make the change. Say "resume" to run `resume-task` if continuing work.
+2. `cop` in the repo or worktree to make the change. It refuses to start work outside a git repo
+   or in a folder containing your Copilot config (like your home folder), because edits there
+   are pre-approved and the exit handoff checks that folder. Say "resume" to run `resume-task`
+   if continuing work.
 3. Ask it to work the ticket (`work-ticket`). Press Shift+Tab into plan mode first if you want to
    edit the plan in your editor (Ctrl+Y) before approving it. It proposes a plan and waits, then changes at most
    3 files or about 200 lines per batch. File edits in the working folder don't prompt in `cop`;

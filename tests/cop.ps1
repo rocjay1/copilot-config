@@ -12,11 +12,16 @@ $pwshExe = (Get-Process -Id $PID).Path
 $fixture = Join-Path $R 'tests/fixtures/cop.psd1'
 # A throwaway COPILOT_HOME, so cop's reminder files never touch your real one.
 $testHome = Join-Path ([System.IO.Path]::GetTempPath()) "cop-home-$([System.IO.Path]::GetRandomFileName())"
+# cop runs in a throwaway git repo by default: work only starts inside one, and never in a
+# folder that contains cop.psd1 (this checkout holds the fixture).
+$workRepo = Join-Path ([System.IO.Path]::GetTempPath()) "cop-repo-$([System.IO.Path]::GetRandomFileName())"
+New-Item -ItemType Directory -Path $workRepo | Out-Null
+& git -C $workRepo init -q
 $fail = 0; $total = 0
 
 function Invoke-Cop([string[]]$CopArgs, [hashtable]$Env = @{}, [string]$Cwd = '') {
     $psi = [System.Diagnostics.ProcessStartInfo]::new($pwshExe)
-    if ($Cwd) { $psi.WorkingDirectory = $Cwd }
+    $psi.WorkingDirectory = if ($Cwd) { $Cwd } else { $workRepo }
     foreach ($a in @('-NoProfile', '-NonInteractive', '-File', $cop) + $CopArgs) { $psi.ArgumentList.Add($a) }
     $psi.UseShellExecute = $false
     # Redirected input, so cop never pins a session, whatever terminal runs the tests.
@@ -115,6 +120,24 @@ Remove-Item $capConf
 # never pins. Pinning itself needs a real terminal and is checked by hand, not here.
 Check 'no session pin without a terminal' ((Invoke-Cop 'work', '--dry-run').Out -notmatch '--session-id')
 
+# Where work may start: inside a git repo, never above COPILOT_HOME or cop.psd1
+$plain = Join-Path ([System.IO.Path]::GetTempPath()) "cop-plain-$([System.IO.Path]::GetRandomFileName())"
+New-Item -ItemType Directory -Path $plain | Out-Null
+$r = Invoke-Cop '--dry-run' -Cwd $plain
+Check 'work refuses to start outside a git repo' ($r.Code -eq 2 -and $r.Err -match 'outside a git repo')
+Check 'research starts outside a git repo' ((Invoke-Cop 'research', '--dry-run' -Cwd $plain).Code -eq 0)
+$r = Invoke-Cop 'work', '--dry-run', '--anywhere' -Cwd $plain
+Check '--anywhere skips the check and is not passed on' ($r.Code -eq 0 -and $r.Out -notmatch '--anywhere')
+& git -C $plain init -q
+$plain = [System.IO.Path]::GetFullPath((& git -C $plain rev-parse --show-toplevel))   # real path (macOS temp is a symlink)
+Check 'work starts in a git repo' ((Invoke-Cop '--dry-run' -Cwd $plain).Code -eq 0)
+$r = Invoke-Cop '--dry-run' -Cwd $plain -Env @{ COPILOT_HOME = (Join-Path $plain '.copilot') }
+Check 'work refuses a folder containing COPILOT_HOME' ($r.Code -eq 2 -and $r.Err -match 'pre-approved')
+Copy-Item $fixture (Join-Path $plain 'cop.psd1')
+$r = Invoke-Cop '--dry-run' -Cwd $plain -Env @{ COP_CONF = (Join-Path $plain 'cop.psd1') }
+Check 'work refuses a folder containing cop.psd1' ($r.Code -eq 2 -and $r.Err -match 'pre-approved')
+Remove-Item -Recurse -Force $plain
+
 # Reminders (stderr, not in -p runs)
 $stamp = Join-Path $testHome 'cop-friction-report.last'
 Remove-Item -Force $stamp -ErrorAction SilentlyContinue
@@ -170,7 +193,7 @@ Set-Content (Join-Path $repo NOTES.md) "## Goal`n- test`n`n## State`n- clean at 
 Notes 'older clean-at format at HEAD is current' 0
 Remove-Item -Recurse -Force $repo
 
-Remove-Item -Recurse -Force $testHome -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force $testHome, $workRepo -ErrorAction SilentlyContinue
 Write-Output ''
 Write-Output "cop cases: $($total - $fail)/$total passed"
 exit ($fail -gt 0 ? 1 : 0)
