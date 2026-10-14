@@ -61,7 +61,7 @@ Autonomy is set by side effect, not by task:
 | Tier | Examples | Behavior |
 |---|---|---|
 | Read | Jira/Confluence reads, `gh pr view`, `git log`, monitoring CLIs | Pre-approved: runs freely |
-| Local write | File edits | Planned first, then small batches you review (personal instructions) |
+| Local write | File edits | Planned first, then small batches you review (personal instructions); each edit also prompts in `cop` |
 | External write | Tickets, comments, PRs, `git push`, branches, worktrees | One at a time, only when asked, with a prompt every time |
 
 `cop` makes this concrete. Allow and deny flags aren't saved between sessions, so it's the one

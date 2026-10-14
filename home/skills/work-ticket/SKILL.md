@@ -1,6 +1,6 @@
 ---
 name: work-ticket
-description: Work a ticket or change request locally, planned first and built in small reviewable batches, ending with a PR description written in chat. Never creates the PR itself. Use when asked to work a ticket or implement a change.
+description: Work a ticket or change request locally, planned first and built in small reviewable batches, ending with a PR description written in chat. Never creates the PR itself. Use when asked to work a ticket, or for a change spanning several files. Not for small, obvious edits.
 ---
 
 # Work ticket
