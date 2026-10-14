@@ -21,8 +21,9 @@ Gather first:
 3. When the plan is done, run the approved verification commands and report the results. Ask
    before each run of a command that needs cloud credentials or takes a state lock, such as
    `terraform plan`.
-4. Write the PR description in chat: what changed, why, how it was verified, and what a reviewer
-   should look at first. Link the ticket.
+4. Write the PR title and description in chat. The title is a Conventional Commits subject
+   (it becomes the squash commit). The description covers what changed, why, how it was
+   verified, and what a reviewer should look at first. Link the ticket.
 
 Stop conditions:
 - Commit only when asked. External writes follow the personal instructions.

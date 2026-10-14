@@ -11,6 +11,8 @@
   remotes. Don't create or change anything outside this machine (tickets, pages, comments, PRs,
   pushes, remote branches) or create branches or worktrees, unless I ask for that specific action
   in my current message.
+- Commit messages and PR titles follow Conventional Commits: `type(scope): summary`, e.g.
+  `fix(s3): block public ACLs`. PRs are squash-merged, so the PR title is what lands on main.
 - Infrastructure: plan and validate only. Never apply, destroy, or run mutating cloud CLI commands.
 - If `NOTES.md` exists at the repo root, read it before starting work.
 - When unsure about a requirement, ask one question rather than guessing.
