@@ -71,8 +71,10 @@ agent only reads it. `NOTES.md` is your working state, not part of the change: k
 commits by adding it once to your global gitignore (`git config --global core.excludesFile`) or
 to each repo's `.git/info/exclude`.
 
-1. `cop research` to investigate: tickets, logs, monitoring, PR history. It can't edit files, and the
-   common external writes are denied; anything else still prompts, so read what you approve.
+1. `cop research` to investigate: tickets, logs, monitoring, PR history. It can't edit files,
+   and the common external writes are denied; anything else still prompts, so read what you
+   approve. When you `/exit`, `cop` prints `cop work --resume <id>`: run it to continue the same
+   session, findings included, with work permissions.
 2. `cop` in the repo to make the change. Say "resume" to run `resume-task` if continuing work.
 3. Ask it to work the ticket (`work-ticket`). Press Shift+Tab into plan mode first if you want to
    edit the plan in your editor (Ctrl+Y) before approving it. It proposes a plan and waits, then changes at most
@@ -80,17 +82,18 @@ to each repo's `.git/info/exclude`.
    the stop after each batch is your review point. Review each batch's diff, editing in your
    editor with completions where you'd rather write it yourself. Small, obvious edits skip the
    plan; just ask for them.
-4. When it's done, it runs the approved validation, asks you to run `/review` and
-   `/security-review` on the local changes, triages their findings, and writes the PR title and
-   description in chat. Open the PR
+4. When it's done, it runs the approved validation, reviews the local changes with Copilot's
+   built-in `code-review` and `security-review` subagents (the agents behind `/review` and
+   `/security-review`), triages their findings, and writes the PR title and description in chat. Open the PR
    (or approve the prompt) and ask for a Copilot review. When it lands, ask it to work through
    the review (`pr-review`): it triages each thread, proposes fixes and waits, and only replies,
    resolves threads, or re-requests review when you ask. Its `gh api` calls prompt.
-5. Run `handoff` to update `NOTES.md`, commit the change itself if you're ready, then `/clear`.
-   Asking for the handoff inside the session is cheapest: the prompt cache is still warm. If you
-   just `/exit` (or Ctrl+C) with `NOTES.md` out of date, `cop` offers to run it for you in that
-   session; that resumed run can cost two to three times as much because it rebuilds the cache.
-   `cop --check-notes` shows the status.
+5. Update `NOTES.md` with the handoff, commit the change itself if you're ready, then `/clear`
+   or `/exit`. The easy way: just `/exit`. If `NOTES.md` is out of date, `cop` offers to run the
+   handoff in that same session on Copilot's cheapest suitable model (about 0.5 AI credits
+   measured, against about 4 for asking inside the session on its own model). Ask inside the
+   session instead when the notes need the session model's judgment; `HandoffModel` in
+   `cop.psd1` changes the exit default. `cop --check-notes` shows the status.
 
 Use `/fork "name"` to compare alternatives. Avoid `/fleet` for changes you need to review:
 it produces a lot at once, and whether hooks guard subagents depends on your CLI version (#3013

@@ -31,6 +31,7 @@ copilot-config/
 ├── home/                         → installed to ~/.copilot (or $env:COPILOT_HOME)
 │   ├── copilot-instructions.md   personal, always-on, every repo
 │   ├── bin/cop.ps1               launcher with work / research permission profiles
+│   ├── bin/tf-check.ps1          read-only Terraform checks (fmt -check, validate), pre-approved
 │   ├── skills/
 │   │   ├── work-ticket/SKILL.md  ticket → plan → reviewable batches → PR description in chat
 │   │   ├── pr-review/SKILL.md    triage review threads → fix → reply, resolve, re-request
@@ -139,7 +140,8 @@ On a machine with real systems to connect, continue with
 ./tests/cop.ps1            # launcher checks, offline
 ./tests/hook.ps1           # guardrail hook against ~50 commands, offline
 ./tests/report.ps1         # friction report counts and redaction, offline
-./tests/smoke.ps1          # live Copilot sessions, ~17 premium requests
+./tests/tfcheck.ps1        # tf-check refuses anything that could write, offline
+./tests/smoke.ps1          # live Copilot sessions, ~21 premium requests
 ./tests/smoke.ps1 W2 R2    # selected live cases
 ```
 

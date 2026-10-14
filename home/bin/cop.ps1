@@ -27,7 +27,9 @@ to change it (0 turns it off), pass --max-ai-credits yourself, or raise it in-se
 --check-notes reports whether NOTES.md is current (exit 0) or out of date (exit 1).
 
 When an interactive work session ends (/exit or Ctrl+C), cop checks NOTES.md against the
-handoff fingerprint and, if it's out of date, offers to run the handoff skill in that session.
+handoff fingerprint and, if it's out of date, offers to run the handoff skill in that session,
+on a cheap model (HandoffModel in cop.psd1). When a research session ends, it prints how to
+continue that session with work permissions.
 
 Refuses flags that pre-approve everything or let the model approve its own prompts
 (--allow-all*, --yolo, --autopilot, --mode autopilot, --assisted-approval), and clears the
@@ -149,11 +151,14 @@ $readTools = [System.Collections.Generic.List[string]]@(
     'shell(gh issue view:*)', 'shell(gh issue list:*)',
     'shell(gh run view:*)', 'shell(gh run list:*)', 'shell(git hash-object)',
     # Read-only file utilities (bash, then PowerShell). Left out on purpose because they can
-    # write: sort -o, tree -o, find -delete/-exec, tee. Shell redirection (cat x > y) is
-    # covered by the work profile's `write` approval only inside the working folder, and never
-    # approves the command itself (tests/smoke.ps1 W9, W10).
+    # write: sort -o, tree -o, find -delete/-exec, tee. printf and echo can't write on their own.
+    # Shell redirection (cat x > y) is covered by the work profile's `write` approval only inside
+    # the working folder, and never approves the command itself (tests/smoke.ps1 W9, W10).
     'shell(cat)', 'shell(ls)', 'shell(head)', 'shell(tail)', 'shell(wc)', 'shell(grep)',
-    'shell(pwd)', 'shell(diff)', 'shell(rg)',
+    'shell(pwd)', 'shell(diff)', 'shell(rg)', 'shell(printf)', 'shell(echo)',
+    # tf-check runs only read-only Terraform commands (fmt -check, validate, version, providers);
+    # plan, init, test, and the rest still go through terraform and prompt.
+    'shell(tf-check)',
     'shell(Get-Content)', 'shell(Get-ChildItem)', 'shell(Select-String)', 'shell(Test-Path)',
     'shell(Get-Item)', 'shell(Get-Location)', 'shell(Resolve-Path)'
 )
@@ -184,6 +189,12 @@ $researchDeny = [System.Collections.Generic.List[string]]@(
 # raise it mid-session with /limits). MaxAiCredits in cop.psd1 overrides it; 0 turns it off.
 $maxAiCredits = 100
 
+# Model for the handoff cop offers after a work session. The resumed run has to rebuild the
+# prompt cache, so a cheap model matters: 'auto-efficiency' (Copilot's cheapest suitable model)
+# cost about 0.5 AI credits against 4-14 on the session's model. Any model id works, or
+# 'session' to keep the session's model. Set HandoffModel in cop.psd1 to change it.
+$handoffModel = 'auto-efficiency'
+
 if ($env:COP_CONF) {
     if (-not (Test-Path -LiteralPath $env:COP_CONF -PathType Leaf)) { Stop-Cop "COP_CONF=$env:COP_CONF not found" }
     $conf = $env:COP_CONF
@@ -197,9 +208,10 @@ if (Test-Path -LiteralPath $conf -PathType Leaf) {
     # A data file: Import-PowerShellDataFile evaluates no code.
     $data = Import-PowerShellDataFile -LiteralPath $conf
     foreach ($key in $data.Keys) {
-        if ($key -notin 'ReadTools', 'ResearchDeny', 'MaxAiCredits') { Stop-Cop "unknown key '$key' in $conf (expected ReadTools, ResearchDeny, MaxAiCredits)" }
+        if ($key -notin 'ReadTools', 'ResearchDeny', 'MaxAiCredits', 'HandoffModel') { Stop-Cop "unknown key '$key' in $conf (expected ReadTools, ResearchDeny, MaxAiCredits, HandoffModel)" }
     }
     if ($data.Contains('MaxAiCredits')) { $maxAiCredits = [int]$data.MaxAiCredits }
+    if ($data.Contains('HandoffModel')) { $handoffModel = [string]$data.HandoffModel }
     foreach ($t in @($data.ReadTools)) { if ($t) { $readTools.Add([string]$t) } }
     foreach ($t in @($data.ResearchDeny)) { if ($t) { $researchDeny.Add([string]$t) } }
 } else {
@@ -221,13 +233,15 @@ if ($maxAiCredits -gt 0 -and -not $ownLimit) {
 }
 $copilotArgs.AddRange($passthru)
 
-# Handoff on exit: for an interactive work session that cop starts itself, pin its session ID
-# so that afterwards, if NOTES.md is out of date, cop can offer to run the handoff skill in that
-# same session (copilot --resume <id> -p), with the session's context.
+# For an interactive session that cop starts itself, pin its session ID. Afterwards:
+# - work: if NOTES.md is out of date, offer to run the handoff skill in that same session
+#   (copilot --resume <id> -p), with the session's context;
+# - research: print how to continue the same session with work permissions.
 $isPrompt = @($passthru | Where-Object { $_ -in '-p', '--prompt' -or $_ -like '--prompt=*' }).Count -gt 0
 $ownsSession = @($passthru | Where-Object { $_ -match '^(-r|--resume|--continue|--session-id)(=.*)?$' }).Count -eq 0
-$offerHandoff = $profileName -eq 'work' -and -not $isPrompt -and $ownsSession -and -not [Console]::IsInputRedirected
-if ($offerHandoff) {
+$pinSession = -not $isPrompt -and $ownsSession -and -not [Console]::IsInputRedirected
+$offerHandoff = $pinSession -and $profileName -eq 'work'
+if ($pinSession) {
     $sessionId = [guid]::NewGuid().ToString()
     $copilotArgs.Add('--session-id'); $copilotArgs.Add($sessionId)
 }
@@ -239,14 +253,17 @@ if ($dryRun) {
     exit 0
 }
 
+# Make cop's helper scripts (tf-check) callable by name in Copilot's shell.
+$env:PATH = $PSScriptRoot + [System.IO.Path]::PathSeparator + $env:PATH
+
 # Ctrl+C belongs to copilot; don't let it stop this script before the handoff check.
 $treatCtrlC = [Console]::TreatControlCAsInput
 try {
-    if ($offerHandoff) { [Console]::TreatControlCAsInput = $true }
+    if ($pinSession) { [Console]::TreatControlCAsInput = $true }
     & copilot @copilotArgs
     $code = $LASTEXITCODE
 } finally {
-    if ($offerHandoff) { [Console]::TreatControlCAsInput = $treatCtrlC }
+    if ($pinSession) { [Console]::TreatControlCAsInput = $treatCtrlC }
 }
 
 if ($offerHandoff) {
@@ -254,8 +271,16 @@ if ($offerHandoff) {
     if ($status.Stale) {
         $answer = Read-Host "cop: NOTES.md is out of date ($($status.Reason)). Run the handoff skill now? [Y/n]"
         if ($answer -notmatch '^\s*(n|no)\s*$') {
-            & copilot @permissionArgs --resume $sessionId -p 'Run the handoff skill to update NOTES.md for this session. Do nothing else.'
+            $modelArgs = switch ($handoffModel) {
+                'auto-efficiency' { @('--model', 'auto', '--auto-tier', 'efficiency') }
+                { $_ -in '', 'session' } { @() }
+                default { @('--model', $handoffModel) }
+            }
+            & copilot @permissionArgs @modelArgs --resume $sessionId -p 'Run the handoff skill to update NOTES.md for this session. Do nothing else.'
         }
     }
+}
+if ($pinSession -and $profileName -eq 'research') {
+    [Console]::Error.WriteLine("cop: to continue this session with work permissions (findings carry over): cop work --resume $sessionId")
 }
 exit $code

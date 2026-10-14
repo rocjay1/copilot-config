@@ -73,6 +73,18 @@ $r = Invoke-Cop '--dry-run' -Env @{ COP_CONF = '/nonexistent/cop.psd1' }
 Check 'rejects missing COP_CONF' ($r.Code -eq 2)
 
 
+# Helpers and reads added from friction-report evidence
+$r = Invoke-Cop 'research', '--dry-run'
+Check 'tf-check, printf, echo pre-approved' ($r.Out -match [regex]::Escape('--allow-tool=shell(tf-check)') -and $r.Out -match [regex]::Escape('--allow-tool=shell(printf)') -and $r.Out -match [regex]::Escape('--allow-tool=shell(echo)'))
+Check 'gh deny rules use the prefix form' ($r.Out -match [regex]::Escape('--deny-tool=shell(gh pr create:*)') -and $r.Out -notmatch [regex]::Escape('--deny-tool=shell(gh pr create)'))
+
+# Config keys
+$keyConf = Join-Path ([System.IO.Path]::GetTempPath()) "cop-key-$([System.IO.Path]::GetRandomFileName()).psd1"
+Set-Content $keyConf "@{ HandoffModel = 'session'; MaxAiCredits = 150 }"
+$r = Invoke-Cop '--dry-run' -Env @{ COP_CONF = $keyConf }
+Check 'accepts HandoffModel and MaxAiCredits keys' ($r.Code -eq 0 -and $r.Out -match "(?m)^150\r?$")
+Remove-Item $keyConf
+
 # AI credit cap
 Check 'default cap of 100 credits' ((Invoke-Cop '--dry-run').Out -match "(?m)^--max-ai-credits\r?\n100\r?$")
 Check 'your own --max-ai-credits wins' (@([regex]::Matches((Invoke-Cop 'work', '--dry-run', '--max-ai-credits', '40').Out, '--max-ai-credits')).Count -eq 1)

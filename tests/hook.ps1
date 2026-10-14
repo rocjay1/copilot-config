@@ -69,6 +69,15 @@ $cases = @(
     ,@('deny', 'TF_LOG=1 terraform apply')
     ,@('deny', 'sudo kubectl delete pod x')
     ,@('deny', 'echo $(aws ec2 terminate-instances --instance-ids i-1)')
+    # Prose inside quotes, heredocs, and here-strings is not a command, even across lines
+    ,@('allow', "gh pr create --title `"feat(s3): add module`" --body `"## Why`nPlan-time mocks; AWS provider >= 6.0, < 7.0.`n- Policy uses aws:SourceAccount`"")
+    ,@('allow', "git commit -m `"chore: note that terraform apply runs in CI; kubectl delete is manual`"")
+    ,@('allow', "gh pr create --body-file - <<'EOF'`nLock the AWS provider; terraform apply later`nEOF")
+    ,@('allow', "`$body = @'`nRun terraform apply after review; aws s3 rm is manual`n'@; gh pr create --body `$body")
+    # ...while commands inside quotes that are actually run are still checked
+    ,@('deny', 'bash -c "echo hi; terraform apply"')
+    ,@('deny', 'echo "$(aws ec2 terminate-instances --instance-ids i-1)"')
+    ,@('deny', "pwsh -Command `"Get-Date; helm upgrade a b`"")
     # git reads that write files
     ,@('deny', 'git log -p --output=/tmp/x')
     ,@('deny', 'git diff --output ~/.copilot/hooks/guardrails.json')

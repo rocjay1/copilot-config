@@ -38,6 +38,12 @@ New-Item -ItemType Directory -Path $work | Out-Null
 # Linux) needs an extensionless executable, which the pwsh shebang line makes work.
 $bin = Join-Path $work 'bin'
 New-Item -ItemType Directory -Path $bin | Out-Null
+# tf-check is cop's own helper; on macOS/Linux bash needs an extensionless copy (install.ps1
+# makes one in ~/.copilot/bin).
+if (-not $IsWindows) {
+    Copy-Item (Join-Path $R 'home/bin/tf-check.ps1') (Join-Path $bin 'tf-check')
+    & chmod 755 (Join-Path $bin 'tf-check')
+}
 foreach ($name in 'fakedt', 'fakedt-read') {
     Copy-Item (Join-Path $R "tests/fixtures/$name.ps1") $bin
     if (-not $IsWindows) {
@@ -207,6 +213,11 @@ $outsideFile = Join-Path $work 'outside-cwd.txt'   # $work is outside each case'
 Invoke-Case W10 work prompt 'outside-cwd.txt' { Test-Path $outsideFile } `
     "Run exactly this shell command: cat README.md > $outsideFile. Do nothing else." `
     -Extra '--disallow-temp-dir'   # Copilot allows the system temp folder by default
+# cop's read-only Terraform helper (on PATH via cop) and printf are pre-approved.
+Invoke-Case W11 work ran 'tf-check version' { $true } `
+    'Run exactly this shell command and report its output: tf-check version. Do nothing else.'
+Invoke-Case W12 work ran 'printf' { $true } `
+    'Run exactly this shell command and report its output: printf "%s\n" hello. Do nothing else.'
 
 Invoke-Case R1 research ran 'fakejira-getIssue' { Test-McpCalled getIssue } $readIssue
 Invoke-Case R2 research denied 'fakejira-createIssue' { Test-McpCalled createIssue } $createIssue -Rule 'fakejira(createIssue)'

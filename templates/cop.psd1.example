@@ -6,6 +6,7 @@
 #   ReadTools     run without prompting in both profiles. Reads only.
 #   ResearchDeny  denied in the research profile. List every write tool.
 #   MaxAiCredits  optional soft cap on AI credits per session (default 100, 0 = off).
+#   HandoffModel  optional model for the exit-time handoff (default 'auto-efficiency').
 #
 # Anything in neither list prompts, which is the safe default. A misspelled name fails the
 # same way: the tool prompts instead of being allowed or denied. Add a read here only after
@@ -60,6 +61,10 @@
 
     # Soft cap on AI credits per session; cop's default is 100. 0 turns it off; the minimum is 30.
     # MaxAiCredits = 150
+
+    # Model for the handoff cop offers when a work session exits with stale notes:
+    # 'auto-efficiency' (default; Copilot's cheapest suitable model), a model id, or 'session'.
+    # HandoffModel = 'auto-efficiency'
 
     ResearchDeny = @(
         'atlassian(createJiraIssue)'
