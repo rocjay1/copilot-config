@@ -83,6 +83,20 @@ $cases = @(
     ,@('deny', 'git diff --output ~/.copilot/hooks/guardrails.json')
     ,@('allow', 'git log --oneline -5')
     ,@('allow', 'git diff --stat')
+    # Redirects into Copilot's own configuration (cop's deny rule only covers the edit tools)
+    ,@('deny', 'echo x > ~/.copilot/hooks/allow.json')
+    ,@('deny', 'echo x >> .copilot/hooks/allow.json')
+    ,@('deny', 'printf x>.copilot/cop.psd1')
+    ,@('deny', 'cat a 1> "C:\Users\me\.copilot\hooks\a.json"')
+    ,@('deny', 'echo x *> $env:COPILOT_HOME/hooks/a.json')
+    ,@('deny', 'echo x > ${COPILOT_HOME}/skills/x/SKILL.md')
+    ,@('deny', 'echo x > ../cop.psd1')
+    ,@('deny', "echo x > '/home/me/.copilot/config.json'")
+    ,@('deny', 'git log > out.txt; echo x > ~/.copilot/a')
+    ,@('allow', 'echo x > notes.txt')
+    ,@('allow', 'cat ~/.copilot/config.json')
+    ,@('allow', 'git status 2>&1')
+    ,@('allow', 'echo x > copilot-notes.txt')
 )
 
 function Invoke-Hook([string]$payload) {
@@ -110,6 +124,18 @@ Test-One 'allow' 'file edit mentioning terraform apply' `
     (@{ toolName = 'edit'; toolArgs = (@{ path = 'x.md'; content = 'run terraform apply later' } | ConvertTo-Json -Compress) } | ConvertTo-Json -Compress)
 Test-One 'deny' 'unknown payload shape is still scanned' '{"tool":"bash","input":{"command":"terraform apply"}}'
 Test-One 'deny' 'unparseable payload is still scanned' 'not json terraform apply'
+
+# Redirects resolved against the payload's cwd, and a COPILOT_HOME with any name
+$cwdCase = @{ toolName = 'bash'; cwd = '/home/me/.copilot'; toolArgs = (@{ command = 'echo x > hooks/allow.json' } | ConvertTo-Json -Compress) }
+Test-One 'deny' 'relative redirect from inside .copilot' ($cwdCase | ConvertTo-Json -Compress)
+$saved = $env:COPILOT_HOME
+try {
+    $env:COPILOT_HOME = Join-Path ([System.IO.Path]::GetTempPath()) 'my-copilot'
+    $custom = Join-Path $env:COPILOT_HOME 'hooks/a.json'
+    Test-One 'deny' 'redirect into a custom COPILOT_HOME' (@{ toolName = 'bash'; toolArgs = (@{ command = "echo x > $custom" } | ConvertTo-Json -Compress) } | ConvertTo-Json -Compress)
+    $other = Join-Path ([System.IO.Path]::GetTempPath()) 'my-copilot-other/a.json'
+    Test-One 'allow' 'redirect next to a custom COPILOT_HOME' (@{ toolName = 'bash'; toolArgs = (@{ command = "echo x > $other" } | ConvertTo-Json -Compress) } | ConvertTo-Json -Compress)
+} finally { $env:COPILOT_HOME = $saved }
 
 Write-Output ''
 Write-Output "hook cases: $($total - $fail)/$total passed"

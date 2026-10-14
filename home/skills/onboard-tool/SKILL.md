@@ -9,9 +9,9 @@ Prevents: a tool approved wholesale that can write or send data elsewhere, an in
 (`python`) pre-approved, a credential exposed to Copilot, and approved code that changes
 without review.
 
-Run in `cop` (work) from an unrelated repo or folder, never your home folder or anything
-containing `<COPILOT_HOME>` (`~/.copilot`) or `COP_CONF`: work pre-approves edits inside the
-working folder, and every config write here should prompt. Gather first, read-only, and don't run the tool yet, not even `--help`:
+Run in `cop` (work). Edits under `<COPILOT_HOME>` (`~/.copilot`) and to `cop.psd1` are denied
+to your edit tools, so every config write goes through a shell command the user approves.
+Gather first, read-only, and don't run the tool yet, not even `--help`:
 - The command line that runs it, where its code and dependencies live, who maintains it.
 - Its subcommands or MCP tools and flags, from the source.
 - How it authenticates, and how large a typical result is.
@@ -38,8 +38,10 @@ working folder, and every config write here should prompt. Gather first, read-on
    - **A usage skill**, written with `new-skill`: typical queries, limits, what never to do.
    - **For an MCP server**, no launcher: register it with `copilot mcp add` under the same name
      the rules use.
-5. Once approved, write the launcher, the `cop.psd1` entry (with a comment on why), and the
-   usage skill. Everything stays local: nothing site-specific goes into copilot-config.
+5. Once approved, draft the launcher, the `cop.psd1` entry (with a comment on why), and the
+   usage skill as files in the working folder. Install them with one `Copy-Item` per file
+   (for `cop.psd1`, show the full new file first), so each config write is an approval prompt.
+   Everything stays local: nothing site-specific goes into copilot-config.
 6. Verify, without writing anything real:
    - `cop research --dry-run` lists the rule.
    - `Get-Command <name>` resolves to the launcher, not the original CLI. For MCP, `/mcp show

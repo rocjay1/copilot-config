@@ -69,22 +69,26 @@ Autonomy is set by side effect, not by task:
 | Tier | Examples | Behavior |
 |---|---|---|
 | Read | Jira/Confluence reads, `gh pr view`, `git log`, `cat`/`grep`, monitoring CLIs | Pre-approved: runs freely |
-| Local write | File edits in the working folder | Pre-approved in `cop`; planned first, then small batches whose diffs you review (personal instructions) |
+| Local write | File edits in the working folder, except Copilot's own config | Pre-approved in `cop`; planned first, then small batches whose diffs you review (personal instructions) |
 | External write | Tickets, comments, PRs, `git push`, branches, worktrees | One at a time, only when asked, with a prompt every time |
 
-`cop` makes this concrete. Allow and deny flags aren't saved between sessions, so it's the one
-place the policy lives:
+`cop` makes this concrete. Copilot doesn't save allow and deny rules between sessions, so `cop`
+is `copilot` plus saved flags, and nothing else: `--resume`, the session picker, and `/exit`
+work exactly as in `copilot`. It's the one place the policy lives:
 
 ```powershell
 cop research   # reads pre-approved; file edits and listed external writes denied
 cop            # (work) reads and local edits pre-approved; external writes prompt
 cop --dry-run  # print the exact copilot command and flags
-cop --check-notes   # is NOTES.md current with the uncommitted work?
+cop --resume   # pick a session from anywhere; it returns to that session's folder
 ```
 
 Site-specific tools (your MCP servers and CLIs) go in `~/.copilot/cop.psd1`, a data file that is
-never committed. Start from `templates/cop.psd1.example`. `cop` refuses `--yolo`, `--allow-all*`,
-`--assisted-approval`, and autopilot, and ignores the environment variables that do the same.
+never committed. Start from `templates/cop.psd1.example`.
+
+Work denies file edits to `~/.copilot` and `cop.psd1` wherever it starts (even your home
+folder), and the guardrail hook blocks shell redirects into them, so Copilot can't change its
+own permissions or hooks.
 
 Every `cop` session starts on **Auto, balance tier**, with a soft cap of 100 AI credits;
 `/model` and `/limits` still change them mid-session, and `Model` / `MaxAiCredits` in
@@ -147,7 +151,7 @@ On a machine with real systems to connect, continue with
 ./tests/hook.ps1           # guardrail hook against ~50 commands, offline
 ./tests/report.ps1         # friction report counts and redaction, offline
 ./tests/tfcheck.ps1        # tf-check refuses anything that could write, offline
-./tests/smoke.ps1          # live Copilot sessions, ~21 premium requests
+./tests/smoke.ps1          # live Copilot sessions, ~23 premium requests
 ./tests/smoke.ps1 W2 R2    # selected live cases
 ```
 

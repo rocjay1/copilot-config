@@ -1,5 +1,6 @@
 <#
-preToolUse guardrail: deny shell commands that mutate infrastructure. PowerShell 7+.
+preToolUse guardrail: deny shell commands that mutate infrastructure, or that redirect output
+into Copilot's own configuration. PowerShell 7+.
 
 Reads the hook payload from stdin. Handles both payload formats:
   camelCase  (preToolUse): {"toolName": "...", "toolArgs": "<json string>", ...}
@@ -25,9 +26,11 @@ function Get-Field($obj, [string[]]$names) {
 
 $toolName = ''
 $command = $null
+$cwd = ''
 try {
     $p = $payload | ConvertFrom-Json -AsHashtable
     $toolName = [string](Get-Field $p 'toolName', 'tool_name')
+    $cwd = [string](Get-Field $p 'cwd')
     $toolArgs = Get-Field $p 'toolArgs', 'tool_input'
     if ($toolArgs -is [string]) { try { $toolArgs = $toolArgs | ConvertFrom-Json -AsHashtable } catch { } }
     $cmd = Get-Field $toolArgs 'command', 'cmd', 'script'
@@ -37,11 +40,11 @@ try {
 # Skip known non-shell tools. Unknown or missing names are scanned.
 if ($toolName -and $toolName -notmatch '(?i)bash|shell|powershell|pwsh|terminal|exec|command|run') { exit 0 }
 
-function Deny([string]$what) {
+function Deny([string]$what, [string]$why = 'Infrastructure changes are run by the user, not the agent.') {
     if ($what.Length -gt 80) { $what = $what.Substring(0, 80) }
     [ordered]@{
         permissionDecision       = 'deny'
-        permissionDecisionReason = "Blocked by guardrail hook ($what). Infrastructure changes are run by the user, not the agent. Show the exact command and stop."
+        permissionDecisionReason = "Blocked by guardrail hook ($what). $why Show the exact command and stop."
     } | ConvertTo-Json -Compress
     exit 0
 }
@@ -120,7 +123,33 @@ function Test-Command([string]$command, [int]$depth = 0) {
     if ($depth -lt 3) { foreach ($c in $split.Inner) { Test-Command $c ($depth + 1) } }
 }
 
+# Shell redirection rides cop's `write` approval inside the starting folder, and cop's
+# write(<COPILOT_HOME>/**) deny rule only covers the edit tools (tests/smoke.ps1 W14). So block a
+# redirect into a .copilot folder, COPILOT_HOME, or cop.psd1: a changed hook or cop.psd1 could
+# undo every other safeguard. Other ways to write there (Copy-Item, Set-Content) aren't
+# pre-approved and still prompt. Checks the raw command, so a quoted target counts too.
+$copilotHome = if ($env:COPILOT_HOME) { $env:COPILOT_HOME } else { Join-Path ([Environment]::GetFolderPath('UserProfile')) '.copilot' }
+function Test-ConfigRedirect([string]$text) {
+    $homeNorm = ([IO.Path]::GetFullPath($copilotHome) -replace '\\', '/').TrimEnd('/').ToLowerInvariant()
+    foreach ($m in [regex]::Matches($text, '(?:\d|\*)?>>?\|?\s*(?<t>"[^"]*"|''[^'']*''|[^\s;|&)]+)')) {
+        $t = $m.Groups['t'].Value.Trim('"', "'")
+        if (-not $t -or $t.StartsWith('&')) { continue }    # 2>&1
+        $n = ($t -replace '\\', '/').ToLowerInvariant()
+        $full = $n
+        if ($cwd -and $n -notmatch '^(/|[a-z]:/|~|\$)') {
+            try { $full = ([IO.Path]::GetFullPath($t, $cwd) -replace '\\', '/').ToLowerInvariant() } catch { }
+        }
+        foreach ($x in $n, $full) {
+            if ($x -match '(^|/)\.copilot(/|$)' -or $x -match '\$\{?(env:)?copilot_home' -or $x -match '(^|/)cop\.psd1$' -or
+                $x -eq $homeNorm -or $x.StartsWith("$homeNorm/")) {
+                Deny "redirect into $t" "Copilot's own configuration is changed by the user, not the agent."
+            }
+        }
+    }
+}
+
 if ($command) {
+    Test-ConfigRedirect $command
     Test-Command $command
 } else {
     # No parsed command: no quotes or boundaries to rely on, so match any word in the raw

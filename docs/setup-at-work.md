@@ -107,12 +107,13 @@ removes the notes.
 
 1. Offline checks, free: `./tests/cop.ps1` and `./tests/hook.ps1`. Both should report all cases
    passed.
-2. `./tests/smoke.ps1`: live permission checks against fakes, about 21 premium requests. It
+2. `./tests/smoke.ps1`: live permission checks against fakes, about 23 premium requests. It
    touches nothing real. **All cases must PASS, including H1** (the guardrail hook): on Windows,
    Copilot runs shell commands through PowerShell, and both the permission patterns and the hook
    were first verified on macOS. If a case fails, check its `out.jsonl` under the scratch
-   directory the test prints, and don't rely on that protection until it passes. A full pass
-   records the Copilot CLI version; `cop` warns until one exists, and again after any update.
+   directory the test prints, and don't rely on that protection until it passes. W13 and W14
+   check that Copilot can't edit its own config from a session started in a folder that
+   contains it; on Windows they also confirm the path form of the deny rule.
 3. With the real names, **reads only**:
    - `cop research`, then ask for a Jira search. It should run without a prompt.
    - `cop`, then ask for the same search. It should run without a prompt.
