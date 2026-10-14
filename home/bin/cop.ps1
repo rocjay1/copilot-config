@@ -20,6 +20,9 @@ can't silently fall back to work.
 Site-specific tools (MCP servers, your own CLIs) come from cop.psd1: $env:COP_CONF if set,
 otherwise <COPILOT_HOME or ~/.copilot>/cop.psd1. Start from templates/cop.psd1.example.
 
+Each session gets a soft cap of 100 AI credits (--max-ai-credits). Set MaxAiCredits in cop.psd1
+to change it (0 turns it off), pass --max-ai-credits yourself, or raise it in-session with /limits.
+
 --dry-run prints the copilot command this would run, one argument per line, and exits.
 --check-notes reports whether NOTES.md is current (exit 0) or out of date (exit 1).
 
@@ -177,6 +180,10 @@ $researchDeny = [System.Collections.Generic.List[string]]@(
     'shell(gh api:*)'
 )
 
+# Soft cap on AI credits per session (Copilot blocks the next model call once it's exceeded;
+# raise it mid-session with /limits). MaxAiCredits in cop.psd1 overrides it; 0 turns it off.
+$maxAiCredits = 100
+
 if ($env:COP_CONF) {
     if (-not (Test-Path -LiteralPath $env:COP_CONF -PathType Leaf)) { Stop-Cop "COP_CONF=$env:COP_CONF not found" }
     $conf = $env:COP_CONF
@@ -190,8 +197,9 @@ if (Test-Path -LiteralPath $conf -PathType Leaf) {
     # A data file: Import-PowerShellDataFile evaluates no code.
     $data = Import-PowerShellDataFile -LiteralPath $conf
     foreach ($key in $data.Keys) {
-        if ($key -notin 'ReadTools', 'ResearchDeny') { Stop-Cop "unknown key '$key' in $conf (expected ReadTools, ResearchDeny)" }
+        if ($key -notin 'ReadTools', 'ResearchDeny', 'MaxAiCredits') { Stop-Cop "unknown key '$key' in $conf (expected ReadTools, ResearchDeny, MaxAiCredits)" }
     }
+    if ($data.Contains('MaxAiCredits')) { $maxAiCredits = [int]$data.MaxAiCredits }
     foreach ($t in @($data.ReadTools)) { if ($t) { $readTools.Add([string]$t) } }
     foreach ($t in @($data.ResearchDeny)) { if ($t) { $researchDeny.Add([string]$t) } }
 } else {
@@ -206,6 +214,11 @@ if ($profileName -eq 'research') {
     foreach ($t in $workAllow) { $copilotArgs.Add("--allow-tool=$t") }
 }
 $permissionArgs = @($copilotArgs)
+$ownLimit = @($passthru | Where-Object { $_ -match '^--max-ai-credits(=.*)?$' }).Count -gt 0
+if ($maxAiCredits -gt 0 -and -not $ownLimit) {
+    if ($maxAiCredits -lt 30) { Stop-Cop "MaxAiCredits must be 0 (off) or at least 30, Copilot's minimum (got $maxAiCredits)" }
+    $copilotArgs.Add('--max-ai-credits'); $copilotArgs.Add("$maxAiCredits")
+}
 $copilotArgs.AddRange($passthru)
 
 # Handoff on exit: for an interactive work session that cop starts itself, pin its session ID

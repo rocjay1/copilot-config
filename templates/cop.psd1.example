@@ -5,6 +5,7 @@
 #
 #   ReadTools     run without prompting in both profiles. Reads only.
 #   ResearchDeny  denied in the research profile. List every write tool.
+#   MaxAiCredits  optional soft cap on AI credits per session (default 100, 0 = off).
 #
 # Anything in neither list prompts, which is the safe default. A misspelled name fails the
 # same way: the tool prompts instead of being allowed or denied. Add a read here only after
@@ -56,6 +57,9 @@
         #
         # 'shell(<dtcli>-read)'
     )
+
+    # Soft cap on AI credits per session; cop's default is 100. 0 turns it off; the minimum is 30.
+    # MaxAiCredits = 150
 
     ResearchDeny = @(
         'atlassian(createJiraIssue)'
