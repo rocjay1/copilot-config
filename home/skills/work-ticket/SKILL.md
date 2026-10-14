@@ -11,7 +11,8 @@ Gather first:
 - The ticket (read only) or the request in chat.
 - The files the change touches, and the repo's validate or test commands.
 
-1. Propose a plan and wait for approval:
+1. Propose a plan and wait for approval. If the session is in plan mode, write it as the plan
+   there, so it can be edited before it's approved. The plan covers:
    - each file to add or change, with one line on why;
    - what's out of scope;
    - how the change will be verified (e.g. `terraform validate`, `terraform plan`, or tests).
@@ -21,9 +22,13 @@ Gather first:
 3. When the plan is done, run the approved verification commands and report the results. Ask
    before each run of a command that needs cloud credentials or takes a state lock, such as
    `terraform plan`.
-4. Write the PR title and description in chat. The title is a Conventional Commits subject
+4. Ask me to run `/review` and `/security-review` on the local changes, and wait. Triage what
+   they find like review comments: propose fixes for the ones worth fixing, then apply them
+   as a batch and rerun the verification.
+5. Write the PR title and description in chat. The title is a Conventional Commits subject
    (it becomes the squash commit). The description covers what changed, why, how it was
-   verified, and what a reviewer should look at first. Link the ticket.
+   verified (including the local review), and what a reviewer should look at first. Link the
+   ticket.
 
 Stop conditions:
 - Commit only when asked. External writes follow the personal instructions.

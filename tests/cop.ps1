@@ -73,6 +73,16 @@ $r = Invoke-Cop '--dry-run' -Env @{ COP_CONF = '/nonexistent/cop.psd1' }
 Check 'rejects missing COP_CONF' ($r.Code -eq 2)
 
 
+# AI credit cap
+Check 'default cap of 100 credits' ((Invoke-Cop '--dry-run').Out -match "(?m)^--max-ai-credits\r?\n100\r?$")
+Check 'your own --max-ai-credits wins' (@([regex]::Matches((Invoke-Cop 'work', '--dry-run', '--max-ai-credits', '40').Out, '--max-ai-credits')).Count -eq 1)
+$capConf = Join-Path ([System.IO.Path]::GetTempPath()) "cop-cap-$([System.IO.Path]::GetRandomFileName()).psd1"
+Set-Content $capConf "@{ MaxAiCredits = 0 }"
+Check 'MaxAiCredits = 0 turns the cap off' ((Invoke-Cop '--dry-run' -Env @{ COP_CONF = $capConf }).Out -notmatch '--max-ai-credits')
+Set-Content $capConf "@{ MaxAiCredits = 10 }"
+Check 'rejects a cap below 30' ((Invoke-Cop '--dry-run' -Env @{ COP_CONF = $capConf }).Code -eq 2)
+Remove-Item $capConf
+
 # Handoff on exit: never in -p runs or research
 Check 'no session pin for -p runs' ((Invoke-Cop 'work', '--dry-run', '-p', 'x').Out -notmatch '--session-id')
 Check 'no session pin in research' ((Invoke-Cop 'research', '--dry-run').Out -notmatch '--session-id')

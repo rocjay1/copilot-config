@@ -74,12 +74,15 @@ to each repo's `.git/info/exclude`.
 1. `cop research` to investigate: tickets, logs, monitoring, PR history. It can't edit files, and the
    common external writes are denied; anything else still prompts, so read what you approve.
 2. `cop` in the repo to make the change. Say "resume" to run `resume-task` if continuing work.
-3. Ask it to work the ticket (`work-ticket`): it proposes a plan and waits, then changes at most
+3. Ask it to work the ticket (`work-ticket`). Press Shift+Tab into plan mode first if you want to
+   edit the plan in your editor (Ctrl+Y) before approving it. It proposes a plan and waits, then changes at most
    3 files or about 200 lines per batch. File edits in the working folder don't prompt in `cop`;
    the stop after each batch is your review point. Review each batch's diff, editing in your
    editor with completions where you'd rather write it yourself. Small, obvious edits skip the
    plan; just ask for them.
-4. When it's done, it runs the approved validation and writes the PR description in chat. Open the PR
+4. When it's done, it runs the approved validation, asks you to run `/review` and
+   `/security-review` on the local changes, triages their findings, and writes the PR title and
+   description in chat. Open the PR
    (or approve the prompt) and ask for a Copilot review. When it lands, ask it to work through
    the review (`pr-review`): it triages each thread, proposes fixes and waits, and only replies,
    resolves threads, or re-requests review when you ask. Its `gh api` calls prompt.
@@ -106,7 +109,11 @@ The defaults are a starting point; adjust them from evidence, not guesses.
 - **Change only what the report shows:** add reads that prompted repeatedly, tune the batch
   size, change the handoff default. Bring anything surprising back to this repo as a change,
   described in your own words: work details don't leave the work machine.
+- **Revisit after a few weeks:** `/delegate` for side chores (docs, small refactors) if they pile
+  up and your org enables Copilot cloud agent; you'd still review its PR.
 - **Stop and investigate** if something outside your machine changed without your approval.
+- **Sessions have a 100-credit soft cap.** If you hit it mid-task, `/limits` raises it; if you
+  hit it often, set `MaxAiCredits` in `cop.psd1`.
 
 ## Configuration layers
 
