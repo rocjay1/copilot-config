@@ -172,7 +172,8 @@ Can't name the failure it prevents?            → don't add it
 
 ## Open items
 
-- Rerun `tests/hook.ps1` and `tests/smoke.ps1` after `copilot update`. They cover the
+- Rerun `tests/hook.ps1` and `tests/smoke.ps1` after `copilot update` (`cop` warns when the
+  installed version isn't the one a full smoke run last passed on). They cover the
   profiles' allow and deny rules and the guardrail hook (verified on 1.0.97 as a user-level
   hook). They don't cover subagent calls; test those before relying on hooks for `/fleet`.
 - Atlassian tool names in `templates/cop.psd1.example` were checked against the v2 endpoint on a

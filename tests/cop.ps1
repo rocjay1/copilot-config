@@ -127,6 +127,21 @@ Check 'no report reminder in -p runs' ((Invoke-Cop 'work', '--dry-run', '-p', 'x
 (Get-Item $stamp).LastWriteTime = (Get-Date).AddDays(-2)
 Check 'no report reminder within the week' ((Invoke-Cop '--dry-run').Err -notmatch 'friction report')
 
+# Safety-test version check, against a fake copilot that reports 1.0.98.
+$fakeBin = Join-Path $testHome 'bin'
+New-Item -ItemType Directory -Path $fakeBin -Force | Out-Null
+$fake = "#!/usr/bin/env pwsh`nWrite-Output 'GitHub Copilot CLI 1.0.98.'`n"
+Set-Content (Join-Path $fakeBin 'copilot.ps1') $fake
+if (-not $IsWindows) { Set-Content (Join-Path $fakeBin 'copilot') $fake; & chmod 755 (Join-Path $fakeBin 'copilot') }
+$fakePath = @{ PATH = $fakeBin + [System.IO.Path]::PathSeparator + $env:PATH }
+$testsStamp = Join-Path $testHome 'cop-safety-tests.passed'
+Check 'warns when the safety tests never passed here' ((Invoke-Cop '--dry-run' -Env $fakePath).Err -match 'no record of the safety tests')
+Set-Content $testsStamp '1.0.97'
+Check 'warns when Copilot changed since the tests passed' ((Invoke-Cop '--dry-run' -Env $fakePath).Err -match 'Copilot CLI is 1\.0\.98, but the safety tests last passed on 1\.0\.97')
+Check 'no version warning in -p runs' ((Invoke-Cop 'work', '--dry-run', '-p', 'x' -Env $fakePath).Err -notmatch 'safety tests')
+Set-Content $testsStamp '1.0.98'
+Check 'quiet when the tested version is installed' ((Invoke-Cop '--dry-run' -Env $fakePath).Err -notmatch 'safety tests')
+
 # --check-notes: NOTES.md staleness against the handoff State fingerprint
 $repo = Join-Path ([System.IO.Path]::GetTempPath()) "cop-notes-$([System.IO.Path]::GetRandomFileName())"
 New-Item -ItemType Directory -Path $repo | Out-Null

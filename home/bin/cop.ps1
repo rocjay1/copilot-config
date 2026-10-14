@@ -30,7 +30,9 @@ to change it (0 turns it off), pass --max-ai-credits yourself, or raise it in-se
 --check-notes reports whether NOTES.md is current (exit 0) or out of date (exit 1).
 
 Before a session that isn't a -p run, cop reminds you when scripts/friction-report.ps1 hasn't
-run for 7 days (it records each run in <COPILOT_HOME>/cop-friction-report.last).
+run for 7 days (it records each run in <COPILOT_HOME>/cop-friction-report.last), and warns when
+the installed Copilot CLI isn't the version the safety tests last passed on (tests/smoke.ps1
+records it in <COPILOT_HOME>/cop-safety-tests.passed).
 
 When an interactive work session ends (/exit or Ctrl+C), including one resumed with
 --resume <id>, cop checks NOTES.md against the handoff fingerprint and, if it's out of date, offers to run the handoff skill in that session,
@@ -289,6 +291,21 @@ if (-not $isPrompt) {
         } else {
             $days = [int][math]::Floor(((Get-Date) - (Get-Item -LiteralPath $reportStamp).LastWriteTime).TotalDays)
             if ($days -ge 7) { [Console]::Error.WriteLine("cop: the friction report last ran $days days ago. From your copilot-config checkout: ./scripts/friction-report.ps1") }
+        }
+    } catch {}
+    try {
+        # Safety tests: the permission patterns and the hook were verified on one Copilot version
+        # and can break on another. tests/smoke.ps1 records the version after a full pass.
+        $testsStamp = Join-Path $copilotHome 'cop-safety-tests.passed'
+        $rerun = "From your copilot-config checkout: ./tests/smoke.ps1 (it runs ./tests/hook.ps1 too)."
+        if (-not (Test-Path -LiteralPath $testsStamp)) {
+            [Console]::Error.WriteLine("cop: no record of the safety tests passing on this machine. $rerun")
+        } else {
+            $passedOn = (Get-Content -LiteralPath $testsStamp -Raw).Trim()
+            $installed = if ("$(& copilot --version 2>$null)" -match '\d+\.\d+\.\d+') { $Matches[0] }
+            if ($installed -and $installed -ne $passedOn) {
+                [Console]::Error.WriteLine("cop: WARNING Copilot CLI is $installed, but the safety tests last passed on $passedOn. Don't rely on the deny rules or the guardrail hook until they pass again. $rerun")
+            }
         }
     } catch {}
 }
