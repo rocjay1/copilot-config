@@ -251,11 +251,15 @@ $ok = ($script:fail + $script:inconclusive) -eq 0
 # Record the version only after a full run: every case, plus the offline hook test.
 if ($ok -and $selected.Count -eq 0) {
     & $pwshExe -NoProfile -NonInteractive -File (Join-Path $R 'tests/hook.ps1') | Select-Object -Last 1
-    if ($LASTEXITCODE -eq 0 -and "$(& copilot --version)" -match '\d+\.\d+\.\d+') {
+    if ($LASTEXITCODE -ne 0) {
+        $ok = $false; Write-Output 'tests/hook.ps1 failed; nothing recorded.'
+    } elseif ("$(& copilot --version)" -notmatch '\d+\.\d+\.\d+') {
+        $ok = $false; Write-Output "Couldn't read a version from 'copilot --version'; nothing recorded."
+    } else {
         New-Item -ItemType Directory -Path $realHome -Force | Out-Null
         Set-Content -LiteralPath (Join-Path $realHome 'cop-safety-tests.passed') -Value $Matches[0]
         Write-Output "Recorded: the safety tests pass on Copilot CLI $($Matches[0])."
-    } else { $ok = $false; Write-Output 'tests/hook.ps1 failed; nothing recorded.' }
+    }
 } elseif ($ok) {
     Write-Output 'Selected cases only; run the full set to record this Copilot version as tested.'
 }
