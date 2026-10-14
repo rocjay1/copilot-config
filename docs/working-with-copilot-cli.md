@@ -46,8 +46,9 @@ mid-debug hypotheses. `copilot --continue` resumes the most recent session;
 - **`/fleet`** delegates to subagents in parallel. Good for broad, separable work. Typical
   flow: plan first, then `/fleet implement the plan`.
 - **`/delegate`** hands off with more autonomy, ending in a PR. Good for well-specified chores.
-- Known issue: `preToolUse` hooks reportedly don't fire for subagent tool calls
-  (copilot-cli #3013). Don't rely on hooks to guard `/fleet` until that's fixed in your version.
+- Older Copilot CLI releases were affected by issue #3013, where `preToolUse` and `postToolUse`
+  hooks didn't apply to subagent calls. Current releases include the fix; update your CLI and
+  test your installed version before relying on hooks to guard `/fleet` subagents.
 
 ## Worktrees
 
@@ -89,7 +90,8 @@ to each repo's `.git/info/exclude`.
    `cop --check-notes` shows the status.
 
 Use `/fork "name"` to compare alternatives. Avoid `/fleet` for changes you need to review:
-it produces a lot at once, and hooks reportedly don't guard subagents.
+it produces a lot at once, and whether hooks guard subagents depends on your CLI version (#3013
+above).
 
 ## Configuration layers
 
@@ -103,7 +105,7 @@ tiny and push procedures into skills that load only when needed.
 | Path instructions | `.github/instructions/*.instructions.md` | When `applyTo` matches | Tool/language rules, e.g. Terraform |
 | Skills | `.github/skills/`, `~/.copilot/skills/` (also `.claude/`, `.agents/`) | On demand | Multi-step procedures |
 | Custom agents | `.github/agents/`, `~/.copilot/agents/` (`*.agent.md`) | When selected | Narrow roles with restricted tools |
-| Hooks | `.github/hooks/*.json`, `~/.copilot/hooks/*.json` | Every matching tool call | Hard guardrails |
+| Hooks | `.github/hooks/*.json`, `~/.copilot/hooks/*.json` | Every matching tool call | Automated guardrails |
 
 Things to know:
 - Copilot CLI **combines** `.github/copilot-instructions.md`, `AGENTS.md`, `CLAUDE.md`,
@@ -118,7 +120,7 @@ Things to know:
 ## Where does a new rule go?
 
 ```
-Must it never happen, no matter what?          → hook
+Could this cause an unacceptable side effect?  → hook plus independent controls
 Is it a sequence of steps for a situation?     → skill
 Does it apply only to certain files?           → *.instructions.md with applyTo
 Is it the team's convention for this repo?     → repo copilot-instructions.md (via PR)
@@ -129,22 +131,33 @@ Can't name the failure it prevents?            → don't add it
 
 ## Diagnosing over-engineered config
 
-1. Run `scripts/audit.ps1 /path/to/repo`. Compare always-on words to budget
-   (personal ≤ 300, repo ≤ 500).
+1. Run `scripts/audit.ps1 /path/to/repo`. Compare always-on words to this repo's heuristic
+   budgets (personal ≤ 300, repo ≤ 500); these are not GitHub limits.
 2. Look for the same topic in multiple files, especially `AGENTS.md` / `CLAUDE.md`.
 3. Look for skills with overlapping descriptions or duplicate names across locations.
-4. Run `/context` in a fresh session to see the real starting load.
+4. Run `/instructions` and `/context` in a fresh session to check loaded instructions and
+   actual starting context; the audit is only an estimate.
 5. Remove, don't add. Re-test in a new session after each removal.
 
 ## Open items
 
-- Rerun `tests/smoke.ps1` after `copilot update`. It covers the profiles' allow and deny rules
-  and the guardrail hook (verified on 1.0.97 as a user-level hook).
+- Rerun `tests/hook.ps1` and `tests/smoke.ps1` after `copilot update`. They cover the
+  profiles' allow and deny rules and the guardrail hook (verified on 1.0.97 as a user-level
+  hook). They don't cover subagent calls; test those before relying on hooks for `/fleet`.
 - Atlassian tool names in `templates/cop.psd1.example` were checked against the v2 endpoint on a
   test site. Recheck with `/mcp show atlassian` if Atlassian changes its tools.
-- Verify the `tools:` names in `reviewer.agent.md` for your CLI version.
+- Verify the `tools:` names and other frontmatter in `reviewer.agent.md` against your CLI
+  version.
 - Run the audit on the existing work config and review it alongside a screenshot of the
   behavior.
+
+## Compatibility and safety
+
+This configuration targets **Copilot CLI**. Configuration discovery, hooks, and supported
+frontmatter can differ in Copilot cloud agent and IDEs, and can change between CLI versions;
+check the documentation for the surface and version you use. Hooks are automated guardrails,
+not security boundaries. Pair them with permissions, sandboxing, and narrowly scoped
+credentials when a side effect is unacceptable.
 
 ## Sources
 
