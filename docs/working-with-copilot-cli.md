@@ -79,8 +79,12 @@ to each repo's `.git/info/exclude`.
    editor with completions where you'd rather write it yourself. Small, obvious edits skip the
    plan; just ask for them.
 4. When it's done, it runs the approved validation and writes the PR description in chat. Open the PR
-   (or approve the prompt), then iterate on Copilot's review.
+   (or approve the prompt) and ask for a Copilot review. When it lands, ask it to work through
+   the review (`pr-review`): it triages each thread, proposes fixes and waits, and only replies,
+   resolves threads, or re-requests review when you ask. Its `gh api` calls prompt.
 5. Run `handoff` to update `NOTES.md`, commit the change itself if you're ready, then `/clear`.
+   If you just `/exit` (or Ctrl+C) with `NOTES.md` out of date, `cop` offers to run the handoff
+   in that same session for you (about one premium request). `cop --check-notes` shows the status.
 
 Use `/fork "name"` to compare alternatives. Avoid `/fleet` for changes you need to review:
 it produces a lot at once, and hooks reportedly don't guard subagents.

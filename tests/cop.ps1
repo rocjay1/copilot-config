@@ -12,8 +12,9 @@ $pwshExe = (Get-Process -Id $PID).Path
 $fixture = Join-Path $R 'tests/fixtures/cop.psd1'
 $fail = 0; $total = 0
 
-function Invoke-Cop([string[]]$CopArgs, [hashtable]$Env = @{}) {
+function Invoke-Cop([string[]]$CopArgs, [hashtable]$Env = @{}, [string]$Cwd = '') {
     $psi = [System.Diagnostics.ProcessStartInfo]::new($pwshExe)
+    if ($Cwd) { $psi.WorkingDirectory = $Cwd }
     foreach ($a in @('-NoProfile', '-NonInteractive', '-File', $cop) + $CopArgs) { $psi.ArgumentList.Add($a) }
     $psi.UseShellExecute = $false
     $psi.RedirectStandardOutput = $true
@@ -70,6 +71,30 @@ Check 'rejects unknown config key' ($r.Code -eq 2 -and $r.Err -match 'unknown ke
 Remove-Item $badConf
 $r = Invoke-Cop '--dry-run' -Env @{ COP_CONF = '/nonexistent/cop.psd1' }
 Check 'rejects missing COP_CONF' ($r.Code -eq 2)
+
+
+# Handoff on exit: never in -p runs or research
+Check 'no session pin for -p runs' ((Invoke-Cop 'work', '--dry-run', '-p', 'x').Out -notmatch '--session-id')
+Check 'no session pin in research' ((Invoke-Cop 'research', '--dry-run').Out -notmatch '--session-id')
+
+# --check-notes: NOTES.md staleness against the handoff State fingerprint
+$repo = Join-Path ([System.IO.Path]::GetTempPath()) "cop-notes-$([System.IO.Path]::GetRandomFileName())"
+New-Item -ItemType Directory -Path $repo | Out-Null
+function Notes([string]$label, [int]$want) { $r = Invoke-Cop '--check-notes' -Cwd $repo; Check "check-notes: $label ($($r.Out.Trim()))" ($r.Code -eq $want) }
+Notes 'not a git repo is current' 0
+& git -C $repo init -q; Set-Content (Join-Path $repo a.tf) 'a'
+& git -C $repo add a.tf; & git -C $repo -c user.name=t -c user.email=t@example.invalid commit -qm i
+Notes 'clean repo is current' 0
+Set-Content (Join-Path $repo b.tf) 'b'; Add-Content (Join-Path $repo a.tf) 'more'
+Notes 'changes without NOTES.md are stale' 1
+Set-Content (Join-Path $repo NOTES.md) "## Goal`n- test`n"
+Notes 'NOTES.md without State is stale' 1
+$h = @(& git -C $repo hash-object -- a.tf b.tf)
+Set-Content (Join-Path $repo NOTES.md) "## Goal`n- test`n`n## State`n- ``a.tf`` $($h[0].Substring(0,7))`n- ``b.tf`` $($h[1].Substring(0,7))`n"
+Notes 'matching fingerprint is current' 0
+Add-Content (Join-Path $repo b.tf) 'drift'
+Notes 'edit after handoff is stale' 1
+Remove-Item -Recurse -Force $repo
 
 Write-Output ''
 Write-Output "cop cases: $($total - $fail)/$total passed"

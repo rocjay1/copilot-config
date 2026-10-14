@@ -21,6 +21,10 @@ Site-specific tools (MCP servers, your own CLIs) come from cop.psd1: $env:COP_CO
 otherwise <COPILOT_HOME or ~/.copilot>/cop.psd1. Start from templates/cop.psd1.example.
 
 --dry-run prints the copilot command this would run, one argument per line, and exits.
+--check-notes reports whether NOTES.md is current (exit 0) or out of date (exit 1).
+
+When an interactive work session ends (/exit or Ctrl+C), cop checks NOTES.md against the
+handoff fingerprint and, if it's out of date, offers to run the handoff skill in that session.
 
 Refuses flags that pre-approve everything or let the model approve its own prompts
 (--allow-all*, --yolo, --autopilot, --mode autopilot, --assisted-approval), and clears the
@@ -33,6 +37,53 @@ No param() block on purpose: every other argument, including -p, passes through 
 $ErrorActionPreference = 'Stop'
 
 function Stop-Cop([string]$msg) { [Console]::Error.WriteLine("cop: $msg"); exit 2 }
+
+# Is NOTES.md out of date? Compares the uncommitted files and their hashes against the State
+# fingerprint the handoff skill writes. Returns Stale and a short Reason.
+function Get-NotesStatus {
+    $root = & git rev-parse --show-toplevel 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $root) { return [pscustomobject]@{ Stale = $false; Reason = 'not a git repository' } }
+    $raw = (& git -C $root status --porcelain=v1 -z --untracked-files=all 2>$null) -join "`n"
+    $entries = @($raw -split "`0" | Where-Object { $_ })
+    $current = [ordered]@{}
+    for ($i = 0; $i -lt $entries.Count; $i++) {
+        $xy = $entries[$i].Substring(0, 2); $path = $entries[$i].Substring(3)
+        if ($xy[0] -in 'R', 'C') { $i++ }   # with -z, the original path of a rename comes next
+        if ($path -eq 'NOTES.md') { continue }
+        $current[$path] = if ($xy -match 'D') { 'deleted' } else { $null }
+    }
+    if ($current.Count -eq 0) { return [pscustomobject]@{ Stale = $false; Reason = 'no uncommitted changes' } }
+    $toHash = @($current.Keys | Where-Object { -not $current[$_] })
+    if ($toHash.Count) {
+        $hashes = @(& git -C $root hash-object -- @toHash)
+        for ($i = 0; $i -lt $toHash.Count; $i++) { $current[$toHash[$i]] = $hashes[$i].Substring(0, 7) }
+    }
+
+    $notes = Join-Path $root 'NOTES.md'
+    if (-not (Test-Path -LiteralPath $notes)) {
+        return [pscustomobject]@{ Stale = $true; Reason = "$($current.Count) uncommitted files and no NOTES.md" }
+    }
+    $recorded = @{}; $inState = $false; $hasState = $false
+    foreach ($line in Get-Content -LiteralPath $notes) {
+        if ($line -match '^##\s+State\b') { $inState = $true; $hasState = $true; continue }
+        if ($line -match '^##\s') { $inState = $false; continue }
+        if ($inState -and $line -match '^\s*-\s*`([^`]+)`.*?\b([0-9a-f]{7,40}|deleted)\b') {
+            $recorded[$Matches[1]] = if ($Matches[2] -eq 'deleted') { 'deleted' } else { $Matches[2].Substring(0, 7) }
+        }
+    }
+    if (-not $hasState) { return [pscustomobject]@{ Stale = $true; Reason = 'NOTES.md has no State section' } }
+    $changed = @($current.Keys | Where-Object { $recorded[$_] -ne $current[$_] })
+    $gone = @($recorded.Keys | Where-Object { -not $current.Contains($_) })
+    $n = $changed.Count + $gone.Count
+    if ($n -eq 0) { return [pscustomobject]@{ Stale = $false; Reason = 'matches the State fingerprint' } }
+    return [pscustomobject]@{ Stale = $true; Reason = "$n files changed since the last handoff" }
+}
+
+if ($args.Count -gt 0 -and $args[0] -eq '--check-notes') {
+    $s = Get-NotesStatus
+    Write-Output ("{0}: {1}" -f ($s.Stale ? 'stale' : 'current'), $s.Reason)
+    exit ($s.Stale ? 1 : 0)
+}
 
 $rest = [System.Collections.Generic.List[string]]::new()
 foreach ($a in $args) { $rest.Add([string]$a) }
@@ -80,7 +131,7 @@ $readTools = [System.Collections.Generic.List[string]]@(
     'shell(git status)', 'shell(git diff)', 'shell(git log)', 'shell(git show)',
     'shell(gh pr view)', 'shell(gh pr list)', 'shell(gh pr diff)', 'shell(gh pr checks)',
     'shell(gh issue view)', 'shell(gh issue list)',
-    'shell(gh run view)', 'shell(gh run list)',
+    'shell(gh run view)', 'shell(gh run list)', 'shell(git hash-object)',
     # Read-only file utilities (bash, then PowerShell). Left out on purpose because they can
     # write: sort -o, tree -o, find -delete/-exec, tee. Shell redirection (cat x > y) is
     # covered by the work profile's `write` approval only inside the working folder, and never
@@ -139,7 +190,19 @@ if ($profileName -eq 'research') {
 } else {
     foreach ($t in $workAllow) { $copilotArgs.Add("--allow-tool=$t") }
 }
+$permissionArgs = @($copilotArgs)
 $copilotArgs.AddRange($passthru)
+
+# Handoff on exit: for an interactive work session that cop starts itself, pin its session ID
+# so that afterwards, if NOTES.md is out of date, cop can offer to run the handoff skill in that
+# same session (copilot --resume <id> -p), with the session's context.
+$isPrompt = @($passthru | Where-Object { $_ -in '-p', '--prompt' -or $_ -like '--prompt=*' }).Count -gt 0
+$ownsSession = @($passthru | Where-Object { $_ -match '^(-r|--resume|--continue|--session-id)(=.*)?$' }).Count -eq 0
+$offerHandoff = $profileName -eq 'work' -and -not $isPrompt -and $ownsSession -and -not [Console]::IsInputRedirected
+if ($offerHandoff) {
+    $sessionId = [guid]::NewGuid().ToString()
+    $copilotArgs.Add('--session-id'); $copilotArgs.Add($sessionId)
+}
 
 if ($dryRun) {
     Write-Output "# profile: $profileName   conf: $conf"
@@ -148,5 +211,23 @@ if ($dryRun) {
     exit 0
 }
 
-& copilot @copilotArgs
-exit $LASTEXITCODE
+# Ctrl+C belongs to copilot; don't let it stop this script before the handoff check.
+$treatCtrlC = [Console]::TreatControlCAsInput
+try {
+    if ($offerHandoff) { [Console]::TreatControlCAsInput = $true }
+    & copilot @copilotArgs
+    $code = $LASTEXITCODE
+} finally {
+    if ($offerHandoff) { [Console]::TreatControlCAsInput = $treatCtrlC }
+}
+
+if ($offerHandoff) {
+    $status = Get-NotesStatus
+    if ($status.Stale) {
+        $answer = Read-Host "cop: NOTES.md is out of date ($($status.Reason)). Run the handoff skill now? [Y/n]"
+        if ($answer -notmatch '^\s*(n|no)\s*$') {
+            & copilot @permissionArgs --resume $sessionId -p 'Run the handoff skill to update NOTES.md for this session. Do nothing else.'
+        }
+    }
+}
+exit $code

@@ -1,6 +1,6 @@
 ---
 name: resume-task
-description: Re-orient at the start of a session on in-progress work. Use when asked to resume, pick up, or continue work in this repo.
+description: Re-orient at the start of a session on in-progress work. Use when asked to resume or pick up work in this repo. Not for requests to commit, push, or open or review a PR.
 ---
 
 # Resume task

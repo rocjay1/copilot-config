@@ -31,6 +31,7 @@ copilot-config/
 │   ├── bin/cop.ps1               launcher with work / research permission profiles
 │   ├── skills/
 │   │   ├── work-ticket/SKILL.md  ticket → plan → reviewable batches → PR description in chat
+│   │   ├── pr-review/SKILL.md    triage review threads → fix → reply, resolve, re-request
 │   │   ├── handoff/SKILL.md      write NOTES.md before /compact or /clear
 │   │   └── resume-task/SKILL.md  re-orient at session start
 │   └── hooks/
@@ -71,6 +72,7 @@ place the policy lives:
 cop research   # reads pre-approved; file edits and listed external writes denied
 cop            # (work) reads and local edits pre-approved; external writes prompt
 cop --dry-run  # print the exact copilot command and flags
+cop --check-notes   # is NOTES.md current with the uncommitted work?
 ```
 
 Site-specific tools (your MCP servers and CLIs) go in `~/.copilot/cop.psd1`, a data file that is
