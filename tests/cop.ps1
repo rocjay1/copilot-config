@@ -10,21 +10,17 @@ $R = Split-Path -Parent $PSScriptRoot
 $cop = Join-Path $R 'home/bin/cop.ps1'
 $pwshExe = (Get-Process -Id $PID).Path
 $fixture = Join-Path $R 'tests/fixtures/cop.psd1'
-# A throwaway COPILOT_HOME, so cop's reminder files never touch your real one.
+# A throwaway COPILOT_HOME and starting folder; cop only reads them.
 $testHome = Join-Path ([System.IO.Path]::GetTempPath()) "cop-home-$([System.IO.Path]::GetRandomFileName())"
-# cop runs in a throwaway git repo by default: work only starts inside one, and never in a
-# folder that contains cop.psd1 (this checkout holds the fixture).
-$workRepo = Join-Path ([System.IO.Path]::GetTempPath()) "cop-repo-$([System.IO.Path]::GetRandomFileName())"
-New-Item -ItemType Directory -Path $workRepo | Out-Null
-& git -C $workRepo init -q
+$workDir = Join-Path ([System.IO.Path]::GetTempPath()) "cop-cwd-$([System.IO.Path]::GetRandomFileName())"
+New-Item -ItemType Directory -Path $workDir | Out-Null
 $fail = 0; $total = 0
 
 function Invoke-Cop([string[]]$CopArgs, [hashtable]$Env = @{}, [string]$Cwd = '') {
     $psi = [System.Diagnostics.ProcessStartInfo]::new($pwshExe)
-    $psi.WorkingDirectory = if ($Cwd) { $Cwd } else { $workRepo }
+    $psi.WorkingDirectory = if ($Cwd) { $Cwd } else { $workDir }
     foreach ($a in @('-NoProfile', '-NonInteractive', '-File', $cop) + $CopArgs) { $psi.ArgumentList.Add($a) }
     $psi.UseShellExecute = $false
-    # Redirected input, so cop never pins a session, whatever terminal runs the tests.
     $psi.RedirectStandardInput = $true
     $psi.RedirectStandardOutput = $true
     $psi.RedirectStandardError = $true
@@ -44,7 +40,8 @@ function Check([string]$label, [bool]$ok) {
 
 # Profiles
 $r = Invoke-Cop '--dry-run'
-Check 'default profile is work' ($r.Code -eq 0 -and $r.Out -match '# profile: work' -and $r.Out -notmatch '--deny-tool')
+Check 'default profile is work' ($r.Code -eq 0 -and $r.Out -match '# profile: work')
+Check 'work denies only its own config and code-running folders' (@($r.Out -split '\r?\n' | Where-Object { $_ -like '--deny-tool=*' }).Count -eq 5)
 Check 'work pre-approves file edits' ($r.Out -match '(?m)^--allow-tool=write\r?$')
 $r = Invoke-Cop 'research', '--dry-run'
 Check 'research adds deny rules' ($r.Code -eq 0 -and $r.Out -match '# profile: research' -and $r.Out -match '--deny-tool=write' -and $r.Out -match '--deny-tool=shell\(git push\)')
@@ -53,24 +50,21 @@ Check 'research includes conf denies' ($r.Out -match [regex]::Escape('--deny-too
 Check 'conf reads are allowed' ($r.Out -match [regex]::Escape('--allow-tool=fakejira(getIssue)'))
 Check 'passthrough keeps -p and its value' ((Invoke-Cop 'work', '--dry-run', '-p', 'hello world').Out -match "(?m)^-p\r?\n^hello world")
 
-foreach ($bad in @('reserach'), @('--dry-run', 'research'), @('-p', 'x', 'work'), @('help')) {
+foreach ($bad in @('reserach'), @('help')) {
     $r = Invoke-Cop $bad
     Check "rejects profile misuse: $($bad -join ' ')" ($r.Code -eq 2)
 }
+# Only the first argument picks the profile; later, work and research are plain words.
+$r = Invoke-Cop '--dry-run', '-p', 'work'
+Check 'a prompt of "work" passes through' ($r.Code -eq 0 -and $r.Out -match '# profile: work' -and $r.Out -match "(?m)^-p\r?\nwork\r?$")
 
-# Refused flags
-foreach ($flag in @('--yolo'), @('--yolo=true'), @('--allow-all'), @('--allow-all=true'), @('--allow-all-tools'),
-    @('--allow-all-paths'), @('--allow-all-urls'), @('--autopilot'), @('--assisted-approval'),
-    @('--mode=autopilot'), @('--mode', 'autopilot')) {
+# Everything else passes through to copilot unchanged: cop adds flags, never behavior.
+foreach ($flag in @('--resume'), @('--resume', 'abc-123'), @('--continue'), @('--yolo'), @('--mode', 'autopilot')) {
     $r = Invoke-Cop (@('work', '--dry-run') + $flag)
-    Check "refuses $($flag -join ' ')" ($r.Code -eq 2 -and $r.Err -match 'refusing')
+    Check "passes through $($flag -join ' ')" ($r.Code -eq 0 -and $r.Out -match ("(?m)^" + [regex]::Escape($flag[-1]) + "\r?$"))
 }
-Check 'allows --mode plan' ((Invoke-Cop 'work', '--dry-run', '--mode', 'plan').Code -eq 0)
-
-# Environment variables that pre-approve everything are cleared, with a warning
-foreach ($var in 'COPILOT_ALLOW_ALL', 'COPILOT_ASSISTED_APPROVAL') {
-    $r = Invoke-Cop '--dry-run' -Env @{ $var = 'true' }
-    Check "clears $var" ($r.Code -eq 0 -and $r.Err -match "ignoring $var")
+foreach ($removed in '--anywhere', '--check-notes') {
+    Check "no special meaning for $removed" ((Invoke-Cop 'work', '--dry-run', $removed).Out -match ("(?m)^" + $removed + "\r?$"))
 }
 
 # Bad config
@@ -92,7 +86,7 @@ Check 'gh deny rules use the prefix form' ($r.Out -match [regex]::Escape('--deny
 $keyConf = Join-Path ([System.IO.Path]::GetTempPath()) "cop-key-$([System.IO.Path]::GetRandomFileName()).psd1"
 Set-Content $keyConf "@{ HandoffModel = 'session'; MaxAiCredits = 150 }"
 $r = Invoke-Cop '--dry-run' -Env @{ COP_CONF = $keyConf }
-Check 'accepts HandoffModel and MaxAiCredits keys' ($r.Code -eq 0 -and $r.Out -match "(?m)^150\r?$")
+Check 'accepts MaxAiCredits; ignores the old HandoffModel key with a notice' ($r.Code -eq 0 -and $r.Out -match "(?m)^150\r?$" -and $r.Err -match 'ignoring HandoffModel')
 Remove-Item $keyConf
 
 # Default model
@@ -116,88 +110,34 @@ Set-Content $capConf "@{ MaxAiCredits = 10 }"
 Check 'rejects a cap below 30' ((Invoke-Cop '--dry-run' -Env @{ COP_CONF = $capConf }).Code -eq 2)
 Remove-Item $capConf
 
-# Session pin: cop pins only interactive sessions (both profiles), so with redirected input it
-# never pins. Pinning itself needs a real terminal and is checked by hand, not here.
-Check 'no session pin without a terminal' ((Invoke-Cop 'work', '--dry-run').Out -notmatch '--session-id')
-
-# Where work may start: inside a git repo, never above COPILOT_HOME or cop.psd1
-$plain = Join-Path ([System.IO.Path]::GetTempPath()) "cop-plain-$([System.IO.Path]::GetRandomFileName())"
-New-Item -ItemType Directory -Path $plain | Out-Null
-$r = Invoke-Cop '--dry-run' -Cwd $plain
-Check 'work refuses to start outside a git repo' ($r.Code -eq 2 -and $r.Err -match 'outside a git repo')
-Check 'research starts outside a git repo' ((Invoke-Cop 'research', '--dry-run' -Cwd $plain).Code -eq 0)
-$r = Invoke-Cop 'work', '--dry-run', '--anywhere' -Cwd $plain
-Check '--anywhere skips the check and is not passed on' ($r.Code -eq 0 -and $r.Out -notmatch '--anywhere')
-& git -C $plain init -q
-$plain = [System.IO.Path]::GetFullPath((& git -C $plain rev-parse --show-toplevel))   # real path (macOS temp is a symlink)
-Check 'work starts in a git repo' ((Invoke-Cop '--dry-run' -Cwd $plain).Code -eq 0)
-$r = Invoke-Cop '--dry-run' -Cwd $plain -Env @{ COPILOT_HOME = (Join-Path $plain '.copilot') }
-Check 'work refuses a folder containing COPILOT_HOME' ($r.Code -eq 2 -and $r.Err -match 'pre-approved')
-$r = Invoke-Cop '--dry-run' -Cwd $plain -Env @{ COPILOT_HOME = $plain }
-Check 'work refuses the COPILOT_HOME folder itself' ($r.Code -eq 2 -and $r.Err -match 'pre-approved')
-$r = Invoke-Cop '--dry-run' -Cwd $plain -Env @{ COPILOT_HOME = 'sub/.copilot' }
-Check 'work resolves a relative COPILOT_HOME from the starting folder' ($r.Code -eq 2 -and $r.Err -match 'pre-approved')
-Copy-Item $fixture (Join-Path $plain 'cop.psd1')
-$r = Invoke-Cop '--dry-run' -Cwd $plain -Env @{ COP_CONF = (Join-Path $plain 'cop.psd1') }
-Check 'work refuses a folder containing cop.psd1' ($r.Code -eq 2 -and $r.Err -match 'pre-approved')
-Remove-Item -Recurse -Force $plain
-
-# Reminders (stderr, not in -p runs)
-$stamp = Join-Path $testHome 'cop-friction-report.last'
-Remove-Item -Force $stamp -ErrorAction SilentlyContinue
-Check 'no stamp when -p' ((Invoke-Cop 'work', '--dry-run', '-p', 'x') -and -not (Test-Path $stamp))
+# Work denies edits to Copilot's own config, by absolute path, wherever it starts
 $r = Invoke-Cop '--dry-run'
-Check 'first run starts the report clock quietly' ((Test-Path $stamp) -and $r.Err -notmatch 'friction report')
-(Get-Item $stamp).LastWriteTime = (Get-Date).AddDays(-8)
-Check 'reminds after 7 days without a report' ((Invoke-Cop '--dry-run').Err -match 'friction report last ran 8 days ago')
-Check 'no report reminder in -p runs' ((Invoke-Cop 'work', '--dry-run', '-p', 'x').Err -notmatch 'friction report')
-(Get-Item $stamp).LastWriteTime = (Get-Date).AddDays(-2)
-Check 'no report reminder within the week' ((Invoke-Cop '--dry-run').Err -notmatch 'friction report')
-
-# Safety-test version check, against a fake copilot that reports 1.0.98.
-$fakeBin = Join-Path $testHome 'bin'
+$homeRule = '--deny-tool=write(' + [System.IO.Path]::GetFullPath($testHome).TrimEnd('\', '/') + '/**)'
+Check 'work denies edits under COPILOT_HOME' ($r.Out -match ('(?m)^' + [regex]::Escape($homeRule) + '\r?$'))
+Check 'work denies edits to cop.psd1' ($r.Out -match ('(?m)^' + [regex]::Escape("--deny-tool=write($fixture)") + '\r?$'))
+$r = Invoke-Cop '--dry-run' -Env @{ COPILOT_HOME = 'sub/.copilot' }
+$rule = @($r.Out -split '\r?\n' | Where-Object { $_ -match '^--deny-tool=write\(.*[\\/]\.copilot/\*\*\)$' })
+Check 'a relative COPILOT_HOME becomes an absolute rule' ($rule.Count -eq 1 -and $rule[0] -match '^--deny-tool=write\((/|[A-Za-z]:\\).*[\\/]sub[\\/]\.copilot/\*\*\)$')
+Check 'the hook gets the same resolved paths' ($r.Out -match ('(?m)COPILOT_HOME: (/|[A-Za-z]:\\).*[\\/]sub[\\/]\.copilot\r?$'))
+# The launched copilot (a fake that prints its environment) gets the resolved paths
+$fakeBin = Join-Path $testHome 'fakebin'
 New-Item -ItemType Directory -Path $fakeBin -Force | Out-Null
-$fake = "#!/usr/bin/env pwsh`nWrite-Output 'GitHub Copilot CLI 1.0.98.'`n"
+$fake = "#!/usr/bin/env pwsh`nWrite-Output `"env: `$env:COPILOT_HOME|`$env:COP_CONF`"`n"
 Set-Content (Join-Path $fakeBin 'copilot.ps1') $fake
 if (-not $IsWindows) { Set-Content (Join-Path $fakeBin 'copilot') $fake; & chmod 755 (Join-Path $fakeBin 'copilot') }
-$fakePath = @{ PATH = $fakeBin + [System.IO.Path]::PathSeparator + $env:PATH }
-$testsStamp = Join-Path $testHome 'cop-safety-tests.passed'
-Check 'warns when the safety tests never passed here' ((Invoke-Cop '--dry-run' -Env $fakePath).Err -match 'no record of the safety tests')
-Set-Content $testsStamp '1.0.97'
-Check 'warns when Copilot changed since the tests passed' ((Invoke-Cop '--dry-run' -Env $fakePath).Err -match 'Copilot CLI is 1\.0\.98, but the safety tests last passed on 1\.0\.97')
-Check 'no version warning in -p runs' ((Invoke-Cop 'work', '--dry-run', '-p', 'x' -Env $fakePath).Err -notmatch 'safety tests')
-Set-Content $testsStamp '1.0.98'
-Check 'quiet when the tested version is installed' ((Invoke-Cop '--dry-run' -Env $fakePath).Err -notmatch 'safety tests')
+$r = Invoke-Cop @() -Env @{ COPILOT_HOME = 'sub/.copilot'; PATH = $fakeBin + [System.IO.Path]::PathSeparator + $env:PATH }
+Check 'copilot runs with an absolute COPILOT_HOME and COP_CONF' ($r.Out -match ('env: (/|[A-Za-z]:\\).*[\\/]sub[\\/]\.copilot\|' + [regex]::Escape($fixture)))
+$r = Invoke-Cop '--dry-run'
+# ...and edits that would make a pre-approved read run code
+foreach ($t in 'write(.git)', 'write(.git/**)', 'write(.terraform/**)') {
+    Check "work denies $t" ($r.Out -match ('(?m)^' + [regex]::Escape("--deny-tool=$t") + '\r?$'))
+}
+# Git won't load config from a folder that only looks like a bare repo; added after the caller's settings
+Check 'git treats only explicit bare repos as repos' ((Invoke-Cop '--dry-run').Out -match '(?m)^# env: GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe\.bareRepository GIT_CONFIG_VALUE_0=explicit\r?$')
+Check 'the git setting follows existing ones' ((Invoke-Cop '--dry-run' -Env @{ GIT_CONFIG_COUNT = '2' }).Out -match '(?m)^# env: GIT_CONFIG_COUNT=3 GIT_CONFIG_KEY_2=safe\.bareRepository GIT_CONFIG_VALUE_2=explicit\r?$')
+Check 'research adds no path denies (it denies all edits)' ((Invoke-Cop 'research', '--dry-run').Out -notmatch '--deny-tool=write\(')
 
-# --check-notes: NOTES.md staleness against the handoff State fingerprint
-$repo = Join-Path ([System.IO.Path]::GetTempPath()) "cop-notes-$([System.IO.Path]::GetRandomFileName())"
-New-Item -ItemType Directory -Path $repo | Out-Null
-function Notes([string]$label, [int]$want) { $r = Invoke-Cop '--check-notes' -Cwd $repo; Check "check-notes: $label ($($r.Out.Trim()))" ($r.Code -eq $want) }
-Notes 'not a git repo is current' 0
-& git -C $repo init -q; Set-Content (Join-Path $repo a.tf) 'a'
-& git -C $repo add a.tf; & git -C $repo -c user.name=t -c user.email=t@example.invalid commit -qm i
-Notes 'clean repo is current' 0
-Set-Content (Join-Path $repo b.tf) 'b'; Add-Content (Join-Path $repo a.tf) 'more'
-Notes 'changes without NOTES.md are stale' 1
-Set-Content (Join-Path $repo NOTES.md) "## Goal`n- test`n"
-Notes 'NOTES.md without State is stale' 1
-$h = @(& git -C $repo hash-object -- a.tf b.tf)
-Set-Content (Join-Path $repo NOTES.md) "## Goal`n- test`n`n## State`n- ``a.tf`` $($h[0].Substring(0,7))`n- ``b.tf`` $($h[1].Substring(0,7))`n"
-Notes 'matching fingerprint is current' 0
-Add-Content (Join-Path $repo b.tf) 'drift'
-Notes 'edit after handoff is stale' 1
-& git -C $repo add a.tf b.tf; & git -C $repo -c user.name=t -c user.email=t@example.invalid commit -qm work
-$head = (& git -C $repo rev-parse --short=7 HEAD)
-Set-Content (Join-Path $repo NOTES.md) "## Goal`n- test`n`n## State`n- HEAD $head`n"
-Notes 'clean tree at the recorded HEAD is current' 0
-Set-Content (Join-Path $repo c.tf) 'c'
-& git -C $repo add c.tf; & git -C $repo -c user.name=t -c user.email=t@example.invalid commit -qm more
-Notes 'new commit after handoff is stale' 1
-Set-Content (Join-Path $repo NOTES.md) "## Goal`n- test`n`n## State`n- clean at $(& git -C $repo rev-parse --short=7 HEAD)`n"
-Notes 'older clean-at format at HEAD is current' 0
-Remove-Item -Recurse -Force $repo
-
-Remove-Item -Recurse -Force $testHome, $workRepo -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force $testHome, $workDir -ErrorAction SilentlyContinue
 Write-Output ''
 Write-Output "cop cases: $($total - $fail)/$total passed"
 exit ($fail -gt 0 ? 1 : 0)

@@ -69,22 +69,28 @@ Autonomy is set by side effect, not by task:
 | Tier | Examples | Behavior |
 |---|---|---|
 | Read | Jira/Confluence reads, `gh pr view`, `git log`, `cat`/`grep`, monitoring CLIs | Pre-approved: runs freely |
-| Local write | File edits in the working folder | Pre-approved in `cop`; planned first, then small batches whose diffs you review (personal instructions) |
+| Local write | File edits in the working folder, except Copilot's own config | Pre-approved in `cop`; planned first, then small batches whose diffs you review (personal instructions) |
 | External write | Tickets, comments, PRs, `git push`, branches, worktrees | One at a time, only when asked, with a prompt every time |
 
-`cop` makes this concrete. Allow and deny flags aren't saved between sessions, so it's the one
-place the policy lives:
+`cop` makes this concrete. Copilot doesn't save allow and deny rules between sessions, so `cop`
+is `copilot` plus saved flags, and nothing else: `--resume`, the session picker, and `/exit`
+work exactly as in `copilot`. It's the one place the policy lives:
 
 ```powershell
 cop research   # reads pre-approved; file edits and listed external writes denied
 cop            # (work) reads and local edits pre-approved; external writes prompt
 cop --dry-run  # print the exact copilot command and flags
-cop --check-notes   # is NOTES.md current with the uncommitted work?
+cop --resume   # pick a session from anywhere; it returns to that session's folder
 ```
 
 Site-specific tools (your MCP servers and CLIs) go in `~/.copilot/cop.psd1`, a data file that is
-never committed. Start from `templates/cop.psd1.example`. `cop` refuses `--yolo`, `--allow-all*`,
-`--assisted-approval`, and autopilot, and ignores the environment variables that do the same.
+never committed. Start from `templates/cop.psd1.example`.
+
+Work denies file edits to `~/.copilot` and `cop.psd1` wherever it starts (even your home
+folder), and the guardrail hook blocks shell redirects into them, so Copilot can't change its
+own permissions or hooks. It also denies edits to `.git` and `.terraform` folders (and `.git`
+files), which could otherwise make a pre-approved read like `git diff` or `tf-check validate`
+run code.
 
 Every `cop` session starts on **Auto, balance tier**, with a soft cap of 100 AI credits;
 `/model` and `/limits` still change them mid-session, and `Model` / `MaxAiCredits` in
@@ -147,7 +153,7 @@ On a machine with real systems to connect, continue with
 ./tests/hook.ps1           # guardrail hook against ~50 commands, offline
 ./tests/report.ps1         # friction report counts and redaction, offline
 ./tests/tfcheck.ps1        # tf-check refuses anything that could write, offline
-./tests/smoke.ps1          # live Copilot sessions, ~21 premium requests
+./tests/smoke.ps1          # live Copilot sessions, ~24 premium requests
 ./tests/smoke.ps1 W2 R2    # selected live cases
 ```
 
@@ -205,6 +211,15 @@ for checking what the CLI actually loaded. Run this first when behavior seems of
   needs PowerShell 7 on `PATH`; a hook that times out fails open (the call goes through the
   normal permission flow). Keep real credentials scoped so that the agent can't make changes
   even if the hook misses one.
+- Pre-approved reads can run code that a config file names: git's `core.fsmonitor`,
+  `diff.external`, and textconv drivers, `rg --pre`, and Terraform provider binaries. Work
+  denies edits to `.git` and `.terraform` (`.git` verified in 1.0.98, `tests/smoke.ps1` W16,
+  W17), the hook blocks the same settings on the command line or in the environment (`git -c`,
+  `--git-dir`, `GIT_EXTERNAL_DIFF=`, `TF_DATA_DIR=`, `rg --pre`; W18, W19), and cop has git
+  ignore folders that only look like a bare repository (`safe.bareRepository=explicit`; W20). It
+  does not cover config Copilot can't write but that already exists: a `diff.external` you set
+  yourself, in a repo or in `~/.gitconfig`, runs on every `git diff` Copilot makes. `--ext-diff`
+  and `--textconv` aren't blocked; they only use drivers already in that config.
 - Repository hooks (`.github/hooks/`) did not fire in a folder Copilot hadn't been told to
   trust (1.0.97, `-p` mode). Don't count on a repo's own hooks until you've trusted the folder
   and seen them fire.

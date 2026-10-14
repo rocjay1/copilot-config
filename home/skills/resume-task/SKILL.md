@@ -5,6 +5,10 @@ description: Re-orient at the start of a session on in-progress work. Use when a
 
 # Resume task
 
+For re-orienting a fresh session from NOTES.md and git. To get a previous conversation back
+instead, the user runs `cop --resume` (the session picker), which also returns to that
+session's folder.
+
 Gather state without changing anything:
 
 1. Read `NOTES.md` at the repo root, if present.

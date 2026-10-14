@@ -75,13 +75,13 @@ to each repo's `.git/info/exclude`.
 
 1. `cop research` to investigate: tickets, logs, monitoring, PR history. It can't edit files,
    and the common external writes are denied; anything else still prompts, so read what you
-   approve. When you `/exit`, `cop` prints `cop work --resume <id>`: run it to continue the same
-   session, findings included, with work permissions. The resumed session gets the same
-   handoff check on exit as one `cop` started.
-2. `cop` in the repo or worktree to make the change. It refuses to start work outside a git repo
-   or in a folder containing your Copilot config (like your home folder), because edits there
-   are pre-approved and the exit handoff checks that folder. Say "resume" to run `resume-task`
-   if continuing work.
+   approve. To continue the same session with work permissions, findings included, run
+   `cop --resume` and pick it.
+2. `cop` in the repo or worktree to make the change. File edits under the folder you start in
+   are pre-approved, except Copilot's own config (`~/.copilot`, `cop.psd1`), which is denied
+   wherever you start. To come back to a session, run `cop --resume` from anywhere and pick it:
+   it returns to that session's folder, edit approval included. In a fresh session, say
+   "resume" to run `resume-task`.
 3. Ask it to work the ticket (`work-ticket`). Press Shift+Tab into plan mode first if you want to
    edit the plan in your editor (Ctrl+Y) before approving it. It proposes a plan and waits, then changes at most
    3 files or about 200 lines per batch. File edits in the working folder don't prompt in `cop`;
@@ -97,12 +97,9 @@ to each repo's `.git/info/exclude`.
    lands, ask the new session to work through it (`pr-review`); it reads the PR from GitHub, so
    it doesn't need the old context: it triages each thread, proposes fixes and waits, and only replies,
    resolves threads, or re-requests review when you ask. Its `gh api` calls prompt.
-5. Update `NOTES.md` with the handoff, commit the change itself if you're ready, then `/clear`
-   or `/exit`. The easy way: just `/exit`. If `NOTES.md` is out of date, `cop` offers to run the
-   handoff in that same session on Copilot's cheapest suitable model (about 0.5 AI credits
-   measured, against about 4 for asking inside the session on its own model). Ask inside the
-   session instead when the notes need the session model's judgment; `HandoffModel` in
-   `cop.psd1` changes the exit default. `cop --check-notes` shows the status.
+5. Commit the change itself if you're ready, then `/exit`; `cop --resume` brings the whole
+   session back later. Before `/clear`, or when someone else will pick the work up, ask for a
+   handoff first (`handoff` writes `NOTES.md`).
 
 Use `/fork "name"` to compare alternatives. Avoid `/fleet` for changes you need to review:
 it produces a lot at once, and whether hooks guard subagents depends on your CLI version (#3013
@@ -115,12 +112,11 @@ The defaults are a starting point; adjust them from evidence, not guesses.
 - **When something gets in the way,** ask Copilot to log it ("log friction: that batch was too
   big to review"). The `friction-log` skill appends one line to `~/.copilot/friction-log.md`,
   about the tool's behavior, never the work.
-- **Once a week,** run `scripts/friction-report.ps1` and read it on the same machine (`cop`
-  reminds you when a week has passed without one). It shows
+- **Once a week,** run `scripts/friction-report.ps1` and read it on the same machine. It shows
   which commands keep prompting (candidates for `ReadTools`), what got blocked, which skills
   ran, and what sessions cost, alongside your friction notes.
 - **Change only what the report shows:** add reads that prompted repeatedly, tune the batch
-  size, change the handoff default. Bring anything surprising back to this repo as a change,
+  size. Bring anything surprising back to this repo as a change,
   described in your own words: work details don't leave the work machine.
 - **Revisit after a few weeks:** `/delegate` for side chores (docs, small refactors) if they pile
   up and your org enables Copilot cloud agent; you'd still review its PR.
@@ -176,8 +172,7 @@ Can't name the failure it prevents?            → don't add it
 
 ## Open items
 
-- Rerun `tests/hook.ps1` and `tests/smoke.ps1` after `copilot update` (`cop` warns when the
-  installed version isn't the one a full smoke run last passed on). They cover the
+- Rerun `tests/smoke.ps1` (it runs `tests/hook.ps1` too) after Copilot CLI updates. They cover the
   profiles' allow and deny rules and the guardrail hook (verified on 1.0.97 as a user-level
   hook). They don't cover subagent calls; test those before relying on hooks for `/fleet`.
 - Atlassian tool names in `templates/cop.psd1.example` were checked against the v2 endpoint on a

@@ -83,6 +83,62 @@ $cases = @(
     ,@('deny', 'git diff --output ~/.copilot/hooks/guardrails.json')
     ,@('allow', 'git log --oneline -5')
     ,@('allow', 'git diff --stat')
+    # Redirects into Copilot's own configuration (cop's deny rule only covers the edit tools)
+    ,@('deny', 'echo x > ~/.copilot/hooks/allow.json')
+    ,@('deny', 'echo x >> .copilot/hooks/allow.json')
+    ,@('deny', 'printf x>.copilot/cop.psd1')
+    ,@('deny', 'cat a 1> "C:\Users\me\.copilot\hooks\a.json"')
+    ,@('deny', 'echo x *> $env:COPILOT_HOME/hooks/a.json')
+    ,@('deny', 'echo x > ${COPILOT_HOME}/skills/x/SKILL.md')
+    ,@('deny', 'echo x > ../cop.psd1')
+    ,@('deny', "echo x > '/home/me/.copilot/config.json'")
+    ,@('deny', 'git log > out.txt; echo x > ~/.copilot/a')
+    ,@('allow', 'echo x > notes.txt')
+    ,@('allow', 'cat ~/.copilot/config.json')
+    ,@('allow', 'git status 2>&1')
+    ,@('allow', 'echo x > copilot-notes.txt')
+    # ...including quoted, escaped, or indirect paths (PR #18 review)
+    ,@('deny', 'echo x >"$HOME"/.copilot/hooks/a.json')
+    ,@('deny', 'echo x > ~/".copilot"/hooks/a.json')
+    ,@('deny', 'echo x > ~/.cop""ilot/a')
+    ,@('deny', 'echo x >~/.cop`ilot/a')
+    ,@('deny', 'p=~/.copilot/a.json; echo x > $p')
+    ,@('deny', 'cd ~/.copilot; echo x > hooks.json')
+    ,@('deny', 'echo x >> "C:\Program Files\x\.copilot\a.json"')
+    ,@('deny', 'bash -c "echo x > ~/.copilot/a"')
+    ,@('deny', "cat > ~/.copilot/hooks/a.json <<'EOF'`n{}`nEOF")
+    # ...but a > in prose is not a redirect, and other streams don't count
+    ,@('allow', "printf '%s\n' 'echo x > ~/.copilot/hooks/a.json'")
+    ,@('allow', 'git commit -m "docs: never run echo x > ~/.copilot/y"')
+    ,@('allow', 'ls ~/.copilot 2>/dev/null')
+    ,@('allow', 'Get-ChildItem ~/.copilot 2>$null')
+    # the friction-log skill's append: tee isn't pre-approved, so it prompts instead
+    ,@('allow', "printf '%s\n' '- 2026-10-14 [other] x' | tee -a `"`${COPILOT_HOME:-`$HOME/.copilot}/friction-log.md`"")
+    # Ways to make a pre-approved read run code
+    ,@('deny', 'git -c core.fsmonitor=./x.sh status')
+    ,@('deny', 'git -C sub -c diff.external=./x.sh diff')
+    ,@('deny', 'git --no-pager -c core.pager=./x.sh log')
+    ,@('deny', 'git --config-env=diff.external=X diff')
+    ,@('deny', 'git --git-dir=evil status')
+    ,@('deny', 'git --work-tree=. --git-dir evil diff')
+    ,@('deny', 'git.exe --exec-path=evil status')
+    ,@('deny', 'GIT_EXTERNAL_DIFF=./x.sh git diff')
+    ,@('deny', 'GIT_DIR=evil git status')
+    ,@('deny', 'export GIT_CONFIG_COUNT=1; git status')
+    ,@('deny', 'env GIT_CONFIG_PARAMETERS=x git log')
+    ,@('deny', '$env:GIT_EXTERNAL_DIFF = "./x.ps1"; git diff')
+    ,@('deny', 'RIPGREP_CONFIG_PATH=.rgrc rg foo')
+    ,@('deny', 'TF_DATA_DIR=evil tf-check validate')
+    ,@('deny', 'TF_CLI_CONFIG_FILE=x.tfrc tf-check validate')
+    ,@('deny', 'rg --pre ./x.sh foo')
+    ,@('deny', 'rg -i --pre=./x.sh foo')
+    ,@('deny', 'rg --pre-glob "*.pdf" --pre pdftotext foo')
+    ,@('allow', 'git -C sub status')
+    ,@('allow', 'git log -c -1')
+    ,@('allow', 'git diff --cached')
+    ,@('allow', 'git log --grep=GIT_DIR')
+    ,@('allow', 'rg --pretty foo')
+    ,@('allow', 'git commit -m "explain GIT_DIR=x and rg --pre"')
 )
 
 function Invoke-Hook([string]$payload) {
@@ -110,6 +166,29 @@ Test-One 'allow' 'file edit mentioning terraform apply' `
     (@{ toolName = 'edit'; toolArgs = (@{ path = 'x.md'; content = 'run terraform apply later' } | ConvertTo-Json -Compress) } | ConvertTo-Json -Compress)
 Test-One 'deny' 'unknown payload shape is still scanned' '{"tool":"bash","input":{"command":"terraform apply"}}'
 Test-One 'deny' 'unparseable payload is still scanned' 'not json terraform apply'
+
+# Redirects resolved against the payload's cwd, and a COPILOT_HOME or COP_CONF with any name
+function Shell([string]$cmd, [string]$dir = '') {
+    $p = @{ toolName = 'bash'; toolArgs = (@{ command = $cmd } | ConvertTo-Json -Compress) }
+    if ($dir) { $p.cwd = $dir }
+    $p | ConvertTo-Json -Compress
+}
+$tmp = [System.IO.Path]::GetTempPath()
+Test-One 'deny' 'relative redirect from inside .copilot' (Shell 'echo x > hooks/allow.json' (Join-Path $tmp '.copilot'))
+$saved = $env:COPILOT_HOME, $env:COP_CONF
+try {
+    $env:COP_CONF = Join-Path $tmp 'cfg/work.psd1'
+    Test-One 'deny' 'redirect into a custom COP_CONF' (Shell "echo x > $env:COP_CONF")
+    Test-One 'deny' 'relative redirect into a custom COP_CONF' (Shell 'echo x > work.psd1' (Join-Path $tmp 'cfg'))
+    Test-One 'allow' 'redirect next to a custom COP_CONF' (Shell ('echo x > ' + (Join-Path $tmp 'cfg/work.psd1.bak')))
+    $env:COP_CONF = $null
+
+    $env:COPILOT_HOME = Join-Path ([System.IO.Path]::GetTempPath()) 'my-copilot'
+    $custom = Join-Path $env:COPILOT_HOME 'hooks/a.json'
+    Test-One 'deny' 'redirect into a custom COPILOT_HOME' (@{ toolName = 'bash'; toolArgs = (@{ command = "echo x > $custom" } | ConvertTo-Json -Compress) } | ConvertTo-Json -Compress)
+    $other = Join-Path ([System.IO.Path]::GetTempPath()) 'my-copilot-other/a.json'
+    Test-One 'allow' 'redirect next to a custom COPILOT_HOME' (@{ toolName = 'bash'; toolArgs = (@{ command = "echo x > $other" } | ConvertTo-Json -Compress) } | ConvertTo-Json -Compress)
+} finally { $env:COPILOT_HOME, $env:COP_CONF = $saved }
 
 Write-Output ''
 Write-Output "hook cases: $($total - $fail)/$total passed"

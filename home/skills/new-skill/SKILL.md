@@ -42,9 +42,11 @@ Gather first:
    - Name the commands it runs. Don't route around prompts or research's deny rules.
    - No credentials, tokens, or site URLs. Site-specific names belong only in local skills or
      `cop.psd1`.
-5. Show the file and wait. Once approved, tell the user how to test it: new session (or
-   `/skills reload`), ask for the task in their own words without naming the skill, and check
-   it loads. If it doesn't, fix the description, not the steps.
+5. Show the file and wait. Once approved, write it. For a personal skill your edit tools are
+   denied under `<COPILOT_HOME>`: draft it in the working folder, then install it with
+   `New-Item -ItemType Directory -Force` and `Copy-Item`, which the user approves. Tell them
+   how to test it: new session (or `/skills reload`), ask for the task in their own words
+   without naming the skill, and check it loads. If it doesn't, fix the description, not the steps.
 
 Stop conditions:
 - Over about 450 words, or more than one task: propose splitting it.

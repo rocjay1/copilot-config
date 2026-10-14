@@ -62,7 +62,7 @@ Check 'labels the hook block with tool and verb only' ($out -match '\| kubectl d
 Check 'counts the skill' ($out -match '\| work-ticket \| 1 \|')
 Check 'includes recent friction entries only' ($out -match 'despite the 3-file rule' -and $out -notmatch 'old entry')
 Check 'never prints planted secrets' ($out -notmatch 'SECRET')
-Check 'records the run for the weekly reminder' (Test-Path (Join-Path $home_ 'cop-friction-report.last'))
+Check 'writes no reminder stamp' (-not (Test-Path (Join-Path $home_ 'cop-friction-report.last')))
 
 Remove-Item -Recurse -Force $home_
 Write-Output "report cases: $($total - $fail)/$total passed"

@@ -1,6 +1,6 @@
 ---
 name: handoff
-description: Write or update NOTES.md at the repo root so a fresh session can pick up this work. Use before /compact or /clear, at the end of a work block, or when asked for a handoff.
+description: Write or update NOTES.md at the repo root so a fresh session can pick up this work. Use before /compact or /clear, before handing work to someone else, or when asked for a handoff. Not needed just to continue later, since resuming the session (`--resume`) brings the whole conversation back.
 ---
 
 # Handoff
@@ -26,8 +26,8 @@ The very next concrete step, then the remaining steps in order.
 Exact error strings, version pins, resource addresses, commands that must or must not be run, and anything surprising.
 
 ## State
-A fingerprint of the work, so `resume-task` and `cop` can spot commits and edits made after the
-handoff. Write it last, after every other file change:
+A fingerprint of the work, so `resume-task` can spot commits and edits made after the handoff.
+Write it last, after every other file change:
 1. First bullet: `- HEAD <short commit hash>` from `git log --oneline -1`.
 2. List changed and untracked files: `git status --porcelain --untracked-files=all`. Skip
    `NOTES.md`.
