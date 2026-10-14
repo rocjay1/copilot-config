@@ -80,9 +80,9 @@ to each repo's `.git/info/exclude`.
    the stop after each batch is your review point. Review each batch's diff, editing in your
    editor with completions where you'd rather write it yourself. Small, obvious edits skip the
    plan; just ask for them.
-4. When it's done, it runs the approved validation, asks you to run `/review` and
-   `/security-review` on the local changes, triages their findings, and writes the PR title and
-   description in chat. Open the PR
+4. When it's done, it runs the approved validation, reviews the local changes with Copilot's
+   built-in `code-review` and `security-review` subagents (the agents behind `/review` and
+   `/security-review`), triages their findings, and writes the PR title and description in chat. Open the PR
    (or approve the prompt) and ask for a Copilot review. When it lands, ask it to work through
    the review (`pr-review`): it triages each thread, proposes fixes and waits, and only replies,
    resolves threads, or re-requests review when you ask. Its `gh api` calls prompt.
