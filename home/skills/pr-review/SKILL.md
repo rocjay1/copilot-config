@@ -34,7 +34,9 @@ repo; don't look them up.
    request, look for its `review_requested` event in the timeline
    (`gh api repos/{owner}/{repo}/issues/<number>/timeline --jq '[.[] | select(.event == "review_requested")]'`);
    the Copilot reviewer doesn't appear in the PR's requested-reviewers list. The review itself
-   takes a few minutes.
+   takes a few minutes. Don't wait or poll for it: each check re-sends this session's context.
+   Tell the user to `/exit` and, once GitHub shows the review, start a fresh `cop` and ask it to
+   work through the review.
 
 Stop conditions:
 - Never resolve a thread you disagreed with or marked "needs you"; reply and leave it open

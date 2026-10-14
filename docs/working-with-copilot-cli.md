@@ -87,7 +87,7 @@ to each repo's `.git/info/exclude`.
    built-in `code-review` and `security-review` subagents (the agents behind `/review` and
    `/security-review`), triages their findings, and writes the PR title and description in chat. Open the PR
    (or approve the prompt) and ask for a Copilot review. Then `/exit` and start a fresh `cop`
-   for the review: a session that carried the research, the change, and the PR re-sends all of
+   for the review (`work-ticket` and `pr-review` both remind you, and neither polls for it): a session that carried the research, the change, and the PR re-sends all of
    that context on every call, and one such session used about 180 AI credits. When the review
    lands, ask the new session to work through it (`pr-review`); it reads the PR from GitHub, so
    it doesn't need the old context: it triages each thread, proposes fixes and waits, and only replies,

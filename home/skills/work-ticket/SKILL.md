@@ -31,6 +31,9 @@ Gather first:
    (it becomes the squash commit). The description covers what changed, why, how it was
    verified (including the local review), and what a reviewer should look at first. Link the
    ticket.
+6. End by telling the user: after opening the PR and requesting a Copilot review, `/exit` and
+   handle the review in a fresh `cop` with `pr-review`. This session's research and changes
+   would be re-sent on every review call (one such session used about 180 AI credits).
 
 Stop conditions:
 - Commit only when asked. External writes follow the personal instructions.
