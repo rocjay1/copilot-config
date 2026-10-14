@@ -17,11 +17,13 @@ function Invoke-Cop([string[]]$CopArgs, [hashtable]$Env = @{}, [string]$Cwd = ''
     if ($Cwd) { $psi.WorkingDirectory = $Cwd }
     foreach ($a in @('-NoProfile', '-NonInteractive', '-File', $cop) + $CopArgs) { $psi.ArgumentList.Add($a) }
     $psi.UseShellExecute = $false
+    # Redirected input, so cop never pins a session, whatever terminal runs the tests.
+    $psi.RedirectStandardInput = $true
     $psi.RedirectStandardOutput = $true
     $psi.RedirectStandardError = $true
     $psi.Environment['COP_CONF'] = $fixture
     foreach ($k in $Env.Keys) { $psi.Environment[$k] = $Env[$k] }
-    $p = [System.Diagnostics.Process]::Start($psi)
+    $p = [System.Diagnostics.Process]::Start($psi); $p.StandardInput.Close()
     $out = $p.StandardOutput.ReadToEnd(); $err = $p.StandardError.ReadToEnd()
     $p.WaitForExit()
     [pscustomobject]@{ Code = $p.ExitCode; Out = $out; Err = $err }
@@ -106,9 +108,9 @@ Set-Content $capConf "@{ MaxAiCredits = 10 }"
 Check 'rejects a cap below 30' ((Invoke-Cop '--dry-run' -Env @{ COP_CONF = $capConf }).Code -eq 2)
 Remove-Item $capConf
 
-# Handoff on exit: never in -p runs or research
-Check 'no session pin for -p runs' ((Invoke-Cop 'work', '--dry-run', '-p', 'x').Out -notmatch '--session-id')
-Check 'no session pin in research' ((Invoke-Cop 'research', '--dry-run').Out -notmatch '--session-id')
+# Session pin: cop pins only interactive sessions (both profiles), so with redirected input it
+# never pins. Pinning itself needs a real terminal and is checked by hand, not here.
+Check 'no session pin without a terminal' ((Invoke-Cop 'work', '--dry-run').Out -notmatch '--session-id')
 
 # --check-notes: NOTES.md staleness against the handoff State fingerprint
 $repo = Join-Path ([System.IO.Path]::GetTempPath()) "cop-notes-$([System.IO.Path]::GetRandomFileName())"
