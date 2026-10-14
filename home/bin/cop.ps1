@@ -20,6 +20,9 @@ can't silently fall back to work.
 Site-specific tools (MCP servers, your own CLIs) come from cop.psd1: $env:COP_CONF if set,
 otherwise <COPILOT_HOME or ~/.copilot>/cop.psd1. Start from templates/cop.psd1.example.
 
+Each session starts on Auto, balance tier (--model auto --auto-tier balance); set Model in
+cop.psd1 to change it, or pass --model yourself. /model still switches mid-session.
+
 Each session gets a soft cap of 100 AI credits (--max-ai-credits). Set MaxAiCredits in cop.psd1
 to change it (0 turns it off), pass --max-ai-credits yourself, or raise it in-session with /limits.
 
@@ -195,6 +198,18 @@ $maxAiCredits = 100
 # 'session' to keep the session's model. Set HandoffModel in cop.psd1 to change it.
 $handoffModel = 'auto-efficiency'
 
+# Model every cop session starts on: 'auto-balance' (Auto, balance tier), 'auto-efficiency',
+# 'auto-intelligence', a model id, or '' to use Copilot's own saved setting. /model still changes
+# it mid-session. Set Model in cop.psd1 to change it.
+$model = 'auto-balance'
+
+# --model/--auto-tier arguments for a model setting.
+function Get-ModelArgs([string]$m) {
+    if (-not $m -or $m -eq 'session') { return @() }
+    if ($m -match '^auto-(\w+)$') { return @('--model', 'auto', '--auto-tier', $Matches[1]) }
+    return @('--model', $m)
+}
+
 if ($env:COP_CONF) {
     if (-not (Test-Path -LiteralPath $env:COP_CONF -PathType Leaf)) { Stop-Cop "COP_CONF=$env:COP_CONF not found" }
     $conf = $env:COP_CONF
@@ -208,8 +223,9 @@ if (Test-Path -LiteralPath $conf -PathType Leaf) {
     # A data file: Import-PowerShellDataFile evaluates no code.
     $data = Import-PowerShellDataFile -LiteralPath $conf
     foreach ($key in $data.Keys) {
-        if ($key -notin 'ReadTools', 'ResearchDeny', 'MaxAiCredits', 'HandoffModel') { Stop-Cop "unknown key '$key' in $conf (expected ReadTools, ResearchDeny, MaxAiCredits, HandoffModel)" }
+        if ($key -notin 'ReadTools', 'ResearchDeny', 'MaxAiCredits', 'HandoffModel', 'Model') { Stop-Cop "unknown key '$key' in $conf (expected ReadTools, ResearchDeny, MaxAiCredits, HandoffModel, Model)" }
     }
+    if ($data.Contains('Model')) { $model = [string]$data.Model }
     if ($data.Contains('MaxAiCredits')) { $maxAiCredits = [int]$data.MaxAiCredits }
     if ($data.Contains('HandoffModel')) { $handoffModel = [string]$data.HandoffModel }
     foreach ($t in @($data.ReadTools)) { if ($t) { $readTools.Add([string]$t) } }
@@ -231,6 +247,8 @@ if ($maxAiCredits -gt 0 -and -not $ownLimit) {
     if ($maxAiCredits -lt 30) { Stop-Cop "MaxAiCredits must be 0 (off) or at least 30, Copilot's minimum (got $maxAiCredits)" }
     $copilotArgs.Add('--max-ai-credits'); $copilotArgs.Add("$maxAiCredits")
 }
+$ownModel = @($passthru | Where-Object { $_ -match '^--(model|auto-tier)(=.*)?$' }).Count -gt 0
+if (-not $ownModel) { foreach ($a in (Get-ModelArgs $model)) { $copilotArgs.Add($a) } }
 $copilotArgs.AddRange($passthru)
 
 # For an interactive session that cop starts itself, pin its session ID. Afterwards:
@@ -271,11 +289,7 @@ if ($offerHandoff) {
     if ($status.Stale) {
         $answer = Read-Host "cop: NOTES.md is out of date ($($status.Reason)). Run the handoff skill now? [Y/n]"
         if ($answer -notmatch '^\s*(n|no)\s*$') {
-            $modelArgs = switch ($handoffModel) {
-                'auto-efficiency' { @('--model', 'auto', '--auto-tier', 'efficiency') }
-                { $_ -in '', 'session' } { @() }
-                default { @('--model', $handoffModel) }
-            }
+            $modelArgs = Get-ModelArgs $handoffModel
             & copilot @permissionArgs @modelArgs --resume $sessionId -p 'Run the handoff skill to update NOTES.md for this session. Do nothing else.'
         }
     }

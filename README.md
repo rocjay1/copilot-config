@@ -84,6 +84,10 @@ Site-specific tools (your MCP servers and CLIs) go in `~/.copilot/cop.psd1`, a d
 never committed. Start from `templates/cop.psd1.example`. `cop` refuses `--yolo`, `--allow-all*`,
 `--assisted-approval`, and autopilot, and ignores the environment variables that do the same.
 
+Every `cop` session starts on **Auto, balance tier**, with a soft cap of 100 AI credits;
+`/model` and `/limits` still change them mid-session, and `Model` / `MaxAiCredits` in
+`cop.psd1` change the defaults.
+
 Research is not a sandbox: any shell command that isn't pre-approved or denied still prompts,
 so read what you approve there too.
 
