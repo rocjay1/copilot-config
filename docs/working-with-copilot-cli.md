@@ -74,7 +74,8 @@ to each repo's `.git/info/exclude`.
 1. `cop research` to investigate: tickets, logs, monitoring, PR history. It can't edit files,
    and the common external writes are denied; anything else still prompts, so read what you
    approve. When you `/exit`, `cop` prints `cop work --resume <id>`: run it to continue the same
-   session, findings included, with work permissions.
+   session, findings included, with work permissions. The resumed session gets the same
+   handoff check on exit as one `cop` started.
 2. `cop` in the repo to make the change. Say "resume" to run `resume-task` if continuing work.
 3. Ask it to work the ticket (`work-ticket`). Press Shift+Tab into plan mode first if you want to
    edit the plan in your editor (Ctrl+Y) before approving it. It proposes a plan and waits, then changes at most
@@ -85,8 +86,11 @@ to each repo's `.git/info/exclude`.
 4. When it's done, it runs the approved validation, reviews the local changes with Copilot's
    built-in `code-review` and `security-review` subagents (the agents behind `/review` and
    `/security-review`), triages their findings, and writes the PR title and description in chat. Open the PR
-   (or approve the prompt) and ask for a Copilot review. When it lands, ask it to work through
-   the review (`pr-review`): it triages each thread, proposes fixes and waits, and only replies,
+   (or approve the prompt) and ask for a Copilot review. Then `/exit` and start a fresh `cop`
+   for the review: a session that carried the research, the change, and the PR re-sends all of
+   that context on every call, and one such session used about 180 AI credits. When the review
+   lands, ask the new session to work through it (`pr-review`); it reads the PR from GitHub, so
+   it doesn't need the old context: it triages each thread, proposes fixes and waits, and only replies,
    resolves threads, or re-requests review when you ask. Its `gh api` calls prompt.
 5. Update `NOTES.md` with the handoff, commit the change itself if you're ready, then `/clear`
    or `/exit`. The easy way: just `/exit`. If `NOTES.md` is out of date, `cop` offers to run the
