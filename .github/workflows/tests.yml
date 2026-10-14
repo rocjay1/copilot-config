@@ -1,0 +1,47 @@
+# Offline tests for the cop launcher and the guardrail hook, on Windows and macOS.
+# The live smoke test (tests/smoke.ps1) needs a signed-in Copilot CLI and premium requests,
+# so it runs on your own machine, not here.
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  offline:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - name: PowerShell version
+        run: $PSVersionTable.PSVersion.ToString()
+      - name: Parse every script
+        run: |
+          $bad = 0
+          foreach ($f in Get-ChildItem -Recurse -Include *.ps1, *.psd1, *.example -File) {
+            $errs = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$null, [ref]$errs) | Out-Null
+            if ($errs) { $bad++; Write-Output "$($f.FullName): $($errs.Message -join '; ')" }
+          }
+          if ($bad) { exit 1 }
+      - name: Launcher tests
+        run: ./tests/cop.ps1
+      - name: Hook tests
+        run: ./tests/hook.ps1
+      - name: Install dry run
+        run: ./scripts/install.ps1 -DryRun

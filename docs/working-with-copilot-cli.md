@@ -50,14 +50,48 @@ mid-debug hypotheses. `copilot --continue` resumes the most recent session;
   hooks didn't apply to subagent calls. Current releases include the fix; update your CLI and
   test your installed version before relying on hooks to guard `/fleet` subagents.
 
+## Worktrees
+
+Worktrees are a good way to run tickets in parallel or take an interruption without stashing:
+each ticket gets its own folder, branch, and `NOTES.md`. They went wrong in agent-driven setups
+because the agent created them and nothing kept track. So:
+
+- **You create and remove them.** Copilot can't create one without asking.
+  `git worktree add ../<repo>-<ticket> -b <ticket>` to start, and
+  `git worktree remove ../<repo>-<ticket>` once the PR merges.
+- **One worktree per ticket**, named after the ticket.
+- **`resume-task` lists the others** that have uncommitted changes or notes. Its
+  `git worktree list` prompts in `cop` (approve it), and is denied in `cop research`.
+- `git worktree list` shows them all; check it when you finish a ticket.
+
 ## Daily loop
 
-1. `copilot` in the repo. Instructions load automatically; say "resume" to run the
-   `resume-task` skill if continuing work.
-2. Plan mode for anything non-trivial. After exploring, check `/context`, then `/compact`
-   with focus instructions.
-3. `/fork "name"` for alternatives; `/fleet` for parallelizable work.
-4. Run `handoff` to update `NOTES.md`, commit, then `/clear`.
+One ticket = one branch = one session = one `NOTES.md`. You create or link the ticket; the
+agent only reads it. `NOTES.md` is your working state, not part of the change: keep it out of
+commits by adding it once to your global gitignore (`git config --global core.excludesFile`) or
+to each repo's `.git/info/exclude`.
+
+1. `cop research` to investigate: tickets, logs, monitoring, PR history. It can't edit files, and the
+   common external writes are denied; anything else still prompts, so read what you approve.
+2. `cop` in the repo to make the change. Say "resume" to run `resume-task` if continuing work.
+3. Ask it to work the ticket (`work-ticket`): it proposes a plan and waits, then changes at most
+   3 files or about 200 lines per batch. File edits in the working folder don't prompt in `cop`;
+   the stop after each batch is your review point. Review each batch's diff, editing in your
+   editor with completions where you'd rather write it yourself. Small, obvious edits skip the
+   plan; just ask for them.
+4. When it's done, it runs the approved validation and writes the PR description in chat. Open the PR
+   (or approve the prompt) and ask for a Copilot review. When it lands, ask it to work through
+   the review (`pr-review`): it triages each thread, proposes fixes and waits, and only replies,
+   resolves threads, or re-requests review when you ask. Its `gh api` calls prompt.
+5. Run `handoff` to update `NOTES.md`, commit the change itself if you're ready, then `/clear`.
+   Asking for the handoff inside the session is cheapest: the prompt cache is still warm. If you
+   just `/exit` (or Ctrl+C) with `NOTES.md` out of date, `cop` offers to run it for you in that
+   session; that resumed run can cost two to three times as much because it rebuilds the cache.
+   `cop --check-notes` shows the status.
+
+Use `/fork "name"` to compare alternatives. Avoid `/fleet` for changes you need to review:
+it produces a lot at once, and whether hooks guard subagents depends on your CLI version (#3013
+above).
 
 ## Configuration layers
 
@@ -97,7 +131,7 @@ Can't name the failure it prevents?            → don't add it
 
 ## Diagnosing over-engineered config
 
-1. Run `scripts/audit.sh /path/to/repo`. Compare always-on words to this repo's heuristic
+1. Run `scripts/audit.ps1 /path/to/repo`. Compare always-on words to this repo's heuristic
    budgets (personal ≤ 300, repo ≤ 500); these are not GitHub limits.
 2. Look for the same topic in multiple files, especially `AGENTS.md` / `CLAUDE.md`.
 3. Look for skills with overlapping descriptions or duplicate names across locations.
@@ -107,9 +141,11 @@ Can't name the failure it prevents?            → don't add it
 
 ## Open items
 
-- Verify the guardrail hook in a disposable environment with blocked and allowed commands,
-  likely bypass forms, and subagent calls. Confirm the hook's actual tool names and behavior
-  against your installed CLI version before relying on it.
+- Rerun `tests/hook.ps1` and `tests/smoke.ps1` after `copilot update`. They cover the
+  profiles' allow and deny rules and the guardrail hook (verified on 1.0.97 as a user-level
+  hook). They don't cover subagent calls; test those before relying on hooks for `/fleet`.
+- Atlassian tool names in `templates/cop.psd1.example` were checked against the v2 endpoint on a
+  test site. Recheck with `/mcp show atlassian` if Atlassian changes its tools.
 - Verify the `tools:` names and other frontmatter in `reviewer.agent.md` against your CLI
   version.
 - Run the audit on the existing work config and review it alongside a screenshot of the

@@ -4,8 +4,9 @@
     "preToolUse": [
       {
         "type": "command",
-        "bash": "__COPILOT_HOME__/hooks/scripts/block-mutations.sh",
-        "timeoutSec": 5
+        "bash": "pwsh -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"__COPILOT_HOME__/hooks/scripts/block-mutations.ps1\"",
+        "powershell": "pwsh -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"__COPILOT_HOME__/hooks/scripts/block-mutations.ps1\"",
+        "timeoutSec": 15
       }
     ]
   }

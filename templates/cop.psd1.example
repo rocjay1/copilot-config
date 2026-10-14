@@ -1,0 +1,69 @@
+# cop.psd1: site-specific additions to the cop permission profiles (home/bin/cop.ps1).
+#
+# Copy to ~/.copilot/cop.psd1 (or $env:COPILOT_HOME/cop.psd1) and edit it there. Never commit
+# the real one. It's a PowerShell data file: read with Import-PowerShellDataFile, never run.
+#
+#   ReadTools     run without prompting in both profiles. Reads only.
+#   ResearchDeny  denied in the research profile. List every write tool.
+#
+# Anything in neither list prompts, which is the safe default. A misspelled name fails the
+# same way: the tool prompts instead of being allowed or denied. Add a read here only after
+# it has prompted you in real use.
+#
+# Pattern forms (see `copilot help permissions`):
+#   server(tool)   one MCP tool. `server` is the name in ~/.copilot/mcp-config.json.
+#   server         every tool on that MCP server. Only for servers with no write tools.
+#   shell(cmd)     a shell command. For git and gh it matches the first-level subcommand,
+#                  e.g. shell(gh pr view). Any other command matches by name only, so
+#                  shell(mycli) approves every mycli subcommand; shell(mycli get) matches nothing.
+@{
+    ReadTools = @(
+        # --- Atlassian (Rovo MCP server, v2: https://mcp.atlassian.com/v2/mcp) -----------
+        # Names checked on a test site with Copilot CLI 1.0.97. `atlassian` is the name given to
+        # `copilot mcp add`; change it here if yours differs. v2 has a few primary tools plus
+        # `discover`, which finds other operations, run through executeRead, executeWrite, or
+        # executeDestructive by risk. Only executeRead is pre-approved.
+        'atlassian(atlassianUserInfo)'
+        'atlassian(getAccessibleAtlassianResources)'
+        'atlassian(search)'
+        'atlassian(searchJiraIssuesUsingJql)'
+        'atlassian(searchConfluence)'
+        'atlassian(getJiraIssue)'
+        'atlassian(getConfluenceContent)'
+        'atlassian(getGraphContext)'
+        'atlassian(getGraphObject)'
+        'atlassian(getLoomVideo)'
+        'atlassian(discover)'
+        'atlassian(executeRead)'
+
+        # --- Dynatrace CLI --------------------------------------------------------------
+        # Copilot approves a CLI like this as a whole, never per subcommand (tests/smoke.ps1
+        # W5 and W6). Replace <dtcli> with your CLI's command name, then uncomment one option.
+        #
+        # If the CLI only reads, approve it directly:
+        # 'shell(<dtcli>)'
+        #
+        # If it has any command that changes something, don't approve it. Put a read-only
+        # shim on your PATH and approve the shim; the real CLI keeps prompting. Example shim,
+        # saved as <dtcli>-read.ps1 (see tests/fixtures/fakedt-read.ps1 for a tested one):
+        #
+        #   switch ($args[0]) {
+        #       { $_ -in 'get', 'list', 'query' } { & <dtcli> @args; exit $LASTEXITCODE }
+        #       default { [Console]::Error.WriteLine('<dtcli>-read: read subcommands only'); exit 2 }
+        #   }
+        #
+        # 'shell(<dtcli>-read)'
+    )
+
+    ResearchDeny = @(
+        'atlassian(createJiraIssue)'
+        'atlassian(editJiraIssue)'
+        'atlassian(transitionJiraIssue)'
+        'atlassian(addOrEditJiraIssueComment)'
+        'atlassian(createConfluenceContent)'
+        'atlassian(updateConfluenceContent)'
+        'atlassian(addGraphContext)'
+        'atlassian(executeWrite)'
+        'atlassian(executeDestructive)'
+    )
+}
