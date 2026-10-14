@@ -149,4 +149,4 @@ if (Test-Path $log) {
 }
 
 # Record this run for cop's weekly reminder.
-try { Set-Content -LiteralPath (Join-Path $CopilotHome 'cop-friction-report.last') -Value (Get-Date).ToString('o') } catch {}
+try { Set-Content -LiteralPath (Join-Path $CopilotHome 'cop-friction-report.last') -Value (Get-Date).ToString('o') -ErrorAction Stop } catch {}
