@@ -38,6 +38,7 @@ copilot-config/
 │   │   ├── friction-log/SKILL.md one-line notes on how the tool behaved, kept on this machine
 │   │   ├── handoff/SKILL.md      write NOTES.md before /compact or /clear
 │   │   ├── resume-task/SKILL.md  re-orient at session start
+│   │   ├── new-skill/SKILL.md    create or revise a skill to this setup's standard
 │   │   └── onboard-tool/SKILL.md add a CLI, script, or MCP server with the right permissions
 │   └── hooks/
 │       ├── guardrails.json       preToolUse hook registration
