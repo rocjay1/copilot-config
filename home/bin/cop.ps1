@@ -21,10 +21,12 @@ A resumed session goes back to its own folder, and the edit approval follows it 
 Site-specific tools (MCP servers, your own CLIs) come from cop.psd1: $env:COP_CONF if set,
 otherwise <COPILOT_HOME or ~/.copilot>/cop.psd1. Start from templates/cop.psd1.example.
 
-Defaults, each skipped when you pass the flag yourself:
-  --model auto --auto-tier balance   Model in cop.psd1 changes it; /model switches mid-session.
-  --max-ai-credits 100               MaxAiCredits in cop.psd1 changes it (0 = off); /limits
-                                     raises it mid-session.
+Default, skipped when you pass the flag yourself:
+  --max-ai-credits 100   MaxAiCredits in cop.psd1 changes it (0 = off); /limits raises it
+                         mid-session.
+
+The model comes from Copilot's own settings (`copilot config model`, `copilot config autoTier`),
+as it does for plain copilot.
 
 --dry-run prints the copilot command this would run, one argument per line, and exits.
 
@@ -106,11 +108,6 @@ $researchDeny = [System.Collections.Generic.List[string]]@(
 # raise it mid-session with /limits). MaxAiCredits in cop.psd1 overrides it; 0 turns it off.
 $maxAiCredits = 100
 
-# Model every cop session starts on: 'auto-balance' (Auto, balance tier), 'auto-efficiency',
-# 'auto-intelligence', a model id, or '' to use Copilot's own saved setting. /model still changes
-# it mid-session. Set Model in cop.psd1 to change it.
-$model = 'auto-balance'
-
 $cwd = (Get-Location).ProviderPath
 $copilotHome = if ($env:COPILOT_HOME) { $env:COPILOT_HOME } else { Join-Path ([Environment]::GetFolderPath('UserProfile')) '.copilot' }
 if ($env:COP_CONF) {
@@ -125,9 +122,9 @@ if (Test-Path -LiteralPath $conf -PathType Leaf) {
     $data = Import-PowerShellDataFile -LiteralPath $conf
     foreach ($key in $data.Keys) {
         if ($key -eq 'HandoffModel') { [Console]::Error.WriteLine("cop: ignoring HandoffModel in $conf (no longer used; delete it)"); continue }
-        if ($key -notin 'ReadTools', 'ResearchDeny', 'MaxAiCredits', 'Model') { Stop-Cop "unknown key '$key' in $conf (expected ReadTools, ResearchDeny, MaxAiCredits, Model)" }
+        if ($key -eq 'Model') { [Console]::Error.WriteLine("cop: ignoring Model in $conf (set it with copilot config model instead; delete it)"); continue }
+        if ($key -notin 'ReadTools', 'ResearchDeny', 'MaxAiCredits') { Stop-Cop "unknown key '$key' in $conf (expected ReadTools, ResearchDeny, MaxAiCredits)" }
     }
-    if ($data.Contains('Model')) { $model = [string]$data.Model }
     if ($data.Contains('MaxAiCredits')) { $maxAiCredits = [int]$data.MaxAiCredits }
     foreach ($t in @($data.ReadTools)) { if ($t) { $readTools.Add([string]$t) } }
     foreach ($t in @($data.ResearchDeny)) { if ($t) { $researchDeny.Add([string]$t) } }
@@ -159,11 +156,6 @@ $ownLimit = @($passthru | Where-Object { $_ -match '^--max-ai-credits(=.*)?$' })
 if ($maxAiCredits -gt 0 -and -not $ownLimit) {
     if ($maxAiCredits -lt 30) { Stop-Cop "MaxAiCredits must be 0 (off) or at least 30, Copilot's minimum (got $maxAiCredits)" }
     $copilotArgs.Add('--max-ai-credits'); $copilotArgs.Add("$maxAiCredits")
-}
-$ownModel = @($passthru | Where-Object { $_ -match '^--(model|auto-tier)(=.*)?$' }).Count -gt 0
-if ($model -and -not $ownModel) {
-    if ($model -match '^auto-(\w+)$') { $copilotArgs.AddRange([string[]]@('--model', 'auto', '--auto-tier', $Matches[1])) }
-    else { $copilotArgs.AddRange([string[]]@('--model', $model)) }
 }
 $copilotArgs.AddRange([string[]]$passthru)
 
