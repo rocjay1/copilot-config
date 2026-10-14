@@ -110,7 +110,8 @@ The defaults are a starting point; adjust them from evidence, not guesses.
 - **When something gets in the way,** ask Copilot to log it ("log friction: that batch was too
   big to review"). The `friction-log` skill appends one line to `~/.copilot/friction-log.md`,
   about the tool's behavior, never the work.
-- **Once a week,** run `scripts/friction-report.ps1` and read it on the same machine. It shows
+- **Once a week,** run `scripts/friction-report.ps1` and read it on the same machine (`cop`
+  reminds you when a week has passed without one). It shows
   which commands keep prompting (candidates for `ReadTools`), what got blocked, which skills
   ran, and what sessions cost, alongside your friction notes.
 - **Change only what the report shows:** add reads that prompted repeatedly, tune the batch

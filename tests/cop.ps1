@@ -10,6 +10,8 @@ $R = Split-Path -Parent $PSScriptRoot
 $cop = Join-Path $R 'home/bin/cop.ps1'
 $pwshExe = (Get-Process -Id $PID).Path
 $fixture = Join-Path $R 'tests/fixtures/cop.psd1'
+# A throwaway COPILOT_HOME, so cop's reminder files never touch your real one.
+$testHome = Join-Path ([System.IO.Path]::GetTempPath()) "cop-home-$([System.IO.Path]::GetRandomFileName())"
 $fail = 0; $total = 0
 
 function Invoke-Cop([string[]]$CopArgs, [hashtable]$Env = @{}, [string]$Cwd = '') {
@@ -22,6 +24,7 @@ function Invoke-Cop([string[]]$CopArgs, [hashtable]$Env = @{}, [string]$Cwd = ''
     $psi.RedirectStandardOutput = $true
     $psi.RedirectStandardError = $true
     $psi.Environment['COP_CONF'] = $fixture
+    $psi.Environment['COPILOT_HOME'] = $testHome
     foreach ($k in $Env.Keys) { $psi.Environment[$k] = $Env[$k] }
     $p = [System.Diagnostics.Process]::Start($psi); $p.StandardInput.Close()
     $out = $p.StandardOutput.ReadToEnd(); $err = $p.StandardError.ReadToEnd()
@@ -112,6 +115,18 @@ Remove-Item $capConf
 # never pins. Pinning itself needs a real terminal and is checked by hand, not here.
 Check 'no session pin without a terminal' ((Invoke-Cop 'work', '--dry-run').Out -notmatch '--session-id')
 
+# Reminders (stderr, not in -p runs)
+$stamp = Join-Path $testHome 'cop-friction-report.last'
+Remove-Item -Force $stamp -ErrorAction SilentlyContinue
+Check 'no stamp when -p' ((Invoke-Cop 'work', '--dry-run', '-p', 'x') -and -not (Test-Path $stamp))
+$r = Invoke-Cop '--dry-run'
+Check 'first run starts the report clock quietly' ((Test-Path $stamp) -and $r.Err -notmatch 'friction report')
+(Get-Item $stamp).LastWriteTime = (Get-Date).AddDays(-8)
+Check 'reminds after 7 days without a report' ((Invoke-Cop '--dry-run').Err -match 'friction report last ran 8 days ago')
+Check 'no report reminder in -p runs' ((Invoke-Cop 'work', '--dry-run', '-p', 'x').Err -notmatch 'friction report')
+(Get-Item $stamp).LastWriteTime = (Get-Date).AddDays(-2)
+Check 'no report reminder within the week' ((Invoke-Cop '--dry-run').Err -notmatch 'friction report')
+
 # --check-notes: NOTES.md staleness against the handoff State fingerprint
 $repo = Join-Path ([System.IO.Path]::GetTempPath()) "cop-notes-$([System.IO.Path]::GetRandomFileName())"
 New-Item -ItemType Directory -Path $repo | Out-Null
@@ -140,6 +155,7 @@ Set-Content (Join-Path $repo NOTES.md) "## Goal`n- test`n`n## State`n- clean at 
 Notes 'older clean-at format at HEAD is current' 0
 Remove-Item -Recurse -Force $repo
 
+Remove-Item -Recurse -Force $testHome -ErrorAction SilentlyContinue
 Write-Output ''
 Write-Output "cop cases: $($total - $fail)/$total passed"
 exit ($fail -gt 0 ? 1 : 0)
