@@ -26,6 +26,11 @@ cop.psd1 to change it, or pass --model yourself. /model still switches mid-sessi
 Each session gets a soft cap of 100 AI credits (--max-ai-credits). Set MaxAiCredits in cop.psd1
 to change it (0 turns it off), pass --max-ai-credits yourself, or raise it in-session with /limits.
 
+The work profile only starts inside a git repo or worktree, and never in a folder that
+contains <COPILOT_HOME> or cop.psd1 (e.g. your home folder): work pre-approves edits under the
+starting folder, and the exit handoff checks that folder's NOTES.md. --anywhere skips this for
+a session that isn't about a repo. Research can start anywhere; it can't edit files.
+
 --dry-run prints the copilot command this would run, one argument per line, and exits.
 --check-notes reports whether NOTES.md is current (exit 0) or out of date (exit 1).
 
@@ -128,10 +133,12 @@ if ($rest.Count -gt 0) {
 
 $refuse = '^--(allow-all(-tools|-paths|-urls)?|yolo|autopilot|assisted-approval)(=.*)?$'
 $dryRun = $false
+$anywhere = $false
 $passthru = [System.Collections.Generic.List[string]]::new()
 $prev = ''
 foreach ($a in $rest) {
     if ($a -eq '--dry-run') { $dryRun = $true }
+    elseif ($a -eq '--anywhere') { $anywhere = $true }
     elseif ($a -match $refuse -or $a -match '^--mode=autopilot$' -or ($prev -eq '--mode' -and $a -eq 'autopilot')) {
         Stop-Cop "refusing $a. Run copilot directly if you really mean it."
     }
@@ -221,6 +228,26 @@ if ($env:COP_CONF) {
     $conf = $env:COP_CONF
 } else {
     $conf = Join-Path $copilotHome 'cop.psd1'
+}
+
+# Where work may start. Work pre-approves edits under the starting folder, loads that repo's
+# instructions and skills, and checks its NOTES.md on exit, so start it in the repo or worktree.
+if ($profileName -eq 'work' -and -not $anywhere) {
+    $cwd = (Get-Location).ProviderPath
+    $cmp = if ($IsWindows) { [StringComparison]::OrdinalIgnoreCase } else { [StringComparison]::Ordinal }
+    $sep = [IO.Path]::DirectorySeparatorChar
+    $cwdTrim = $cwd.TrimEnd('\', '/')
+    foreach ($p in $copilotHome, $conf) {
+        # Relative paths resolve against PowerShell's location, not .NET's current directory.
+        $full = [IO.Path]::GetFullPath($p, $cwd).TrimEnd('\', '/')
+        if ($full.Equals($cwdTrim, $cmp) -or $full.StartsWith($cwdTrim + $sep, $cmp)) {
+            Stop-Cop "won't start work here: edits under $cwd are pre-approved, and that includes $full. cd into the repo or worktree first (or pass --anywhere)."
+        }
+    }
+    & git rev-parse --show-toplevel *> $null
+    if ($LASTEXITCODE -ne 0) {
+        Stop-Cop "won't start work outside a git repo: cd into the repo or worktree first, so edits, repo instructions, and the exit handoff all apply to it (or pass --anywhere; use 'cop research' to just investigate)."
+    }
 }
 
 if (Test-Path -LiteralPath $conf -PathType Leaf) {
