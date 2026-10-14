@@ -140,6 +140,9 @@ On a machine with real systems to connect, continue with
 ./tests/smoke.ps1 W2 R2    # selected live cases
 ```
 
+CI (`.github/workflows/tests.yml`) runs the two offline tests on Windows and macOS for every PR
+and push to `main`.
+
 The smoke test runs real Copilot CLI sessions against a fake MCP server, a fake CLI, and a local git remote, in
 an isolated `COPILOT_HOME`. It checks that reads run, writes prompt in work and are denied in
 research, and that the guardrail hook blocks `terraform apply`. Run it on every new machine
