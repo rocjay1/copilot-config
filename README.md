@@ -34,6 +34,7 @@ copilot-config/
 │   ├── skills/
 │   │   ├── work-ticket/SKILL.md  ticket → plan → reviewable batches → PR description in chat
 │   │   ├── pr-review/SKILL.md    triage review threads → fix → reply, resolve, re-request
+│   │   ├── friction-log/SKILL.md one-line notes on how the tool behaved, kept on this machine
 │   │   ├── handoff/SKILL.md      write NOTES.md before /compact or /clear
 │   │   └── resume-task/SKILL.md  re-orient at session start
 │   └── hooks/
@@ -49,7 +50,8 @@ copilot-config/
 ├── docs/setup-at-work.md         → finish setup on a machine with the real systems
 └── scripts/
     ├── install.ps1               copy-install home/ (with -DryRun)
-    └── audit.ps1                 inventory what Copilot will load for a repo
+    ├── audit.ps1                 inventory what Copilot will load for a repo
+    └── friction-report.ps1       summarize prompts, blocks, skills, and cost from session logs
 ```
 
 All scripts are PowerShell 7 (`pwsh`) and run on Windows, macOS, and Linux.
@@ -136,11 +138,12 @@ On a machine with real systems to connect, continue with
 ```powershell
 ./tests/cop.ps1            # launcher checks, offline
 ./tests/hook.ps1           # guardrail hook against ~50 commands, offline
+./tests/report.ps1         # friction report counts and redaction, offline
 ./tests/smoke.ps1          # live Copilot sessions, ~17 premium requests
 ./tests/smoke.ps1 W2 R2    # selected live cases
 ```
 
-CI (`.github/workflows/tests.yml`) runs the two offline tests on Windows and macOS for every PR
+CI (`.github/workflows/tests.yml`) runs the offline tests on Windows and macOS for every PR
 and push to `main`.
 
 The smoke test runs real Copilot CLI sessions against a fake MCP server, a fake CLI, and a local git remote, in
@@ -148,6 +151,18 @@ an isolated `COPILOT_HOME`. It checks that reads run, writes prompt in work and 
 research, and that the guardrail hook blocks `terraform apply`. Run it on every new machine
 (Windows runs shell commands through PowerShell, which can differ from macOS) and again after
 `copilot update`.
+
+## Friction report
+
+```powershell
+./scripts/friction-report.ps1 -Days 7
+```
+
+Summarizes Copilot's own local session logs plus your friction log: what you were prompted for
+(and which of those commands look read-only, the candidates for `ReadTools`), what deny rules and
+the guardrail hook blocked, which skills ran, and AI credits. It prints command and tool names
+and counts only, never arguments, paths, or repo names, and it sends nothing anywhere. Log
+notes during a session by asking Copilot to log friction (the `friction-log` skill).
 
 ## Audit
 
@@ -192,6 +207,8 @@ for checking what the CLI actually loaded. Run this first when behavior seems of
 - In 1.0.97, a `write` approval also covers shell redirection (`cmd > file`) inside the working
   folder, despite what `copilot help permissions` says. It doesn't approve the command itself
   or a path outside the folder (`tests/smoke.ps1` W9, W10). Recheck after `copilot update`.
+- `gh` subcommands below the first level need the prefix form: `shell(gh pr create:*)` matches,
+  `shell(gh pr create)` silently doesn't (`tests/smoke.ps1` R7). `git` rules match as written.
 - For CLIs other than `git` and `gh`, `shell(...)` patterns match the command name only:
   `shell(mycli)` approves every subcommand, and `shell(mycli get)` matches nothing. To
   pre-approve reads from a CLI that can also write, approve a read-only shim

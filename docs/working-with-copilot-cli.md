@@ -93,6 +93,21 @@ Use `/fork "name"` to compare alternatives. Avoid `/fleet` for changes you need 
 it produces a lot at once, and whether hooks guard subagents depends on your CLI version (#3013
 above).
 
+## Tuning it in the first weeks
+
+The defaults are a starting point; adjust them from evidence, not guesses.
+
+- **When something gets in the way,** ask Copilot to log it ("log friction: that batch was too
+  big to review"). The `friction-log` skill appends one line to `~/.copilot/friction-log.md`,
+  about the tool's behavior, never the work.
+- **Once a week,** run `scripts/friction-report.ps1` and read it on the same machine. It shows
+  which commands keep prompting (candidates for `ReadTools`), what got blocked, which skills
+  ran, and what sessions cost, alongside your friction notes.
+- **Change only what the report shows:** add reads that prompted repeatedly, tune the batch
+  size, change the handoff default. Bring anything surprising back to this repo as a change,
+  described in your own words: work details don't leave the work machine.
+- **Stop and investigate** if something outside your machine changed without your approval.
+
 ## Configuration layers
 
 The principle: everything always-on is paid for in every session, so keep instructions
