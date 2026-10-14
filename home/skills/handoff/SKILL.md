@@ -10,7 +10,8 @@ Write `NOTES.md` at the repository root. Overwrite it; it describes the current 
 Use exactly these sections, each a few short bullets:
 
 ## Goal
-What this work is for, in one or two lines. Link the ticket or PR if there is one.
+What this work is for, in one or two lines. Name the current branch (from `git status`),
+and link the ticket or PR if there is one.
 
 ## Decisions
 Choices made and the reason for each. Include rejected options only if someone is likely to re-propose them.
