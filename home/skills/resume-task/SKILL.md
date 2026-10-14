@@ -15,8 +15,10 @@ Gather state without changing anything:
 4. If the GitHub CLI is available, check for an open PR on the current branch.
 5. List other worktrees: `git worktree list --porcelain`. For each one other than this, run
    `git -C <path> status --porcelain` and check whether `<path>/NOTES.md` exists. If the GitHub
-   CLI is available, also check whether its branch's PR has merged:
-   `gh pr list --head <branch> --state merged --json number --jq length` (non-zero means merged).
+   CLI is available, also check whether its branch's PR has merged: compare
+   `gh pr list --head <branch> --state merged --json headRefOid --jq '.[].headRefOid'` with
+   `git -C <path> rev-parse HEAD`. A match means the worktree's HEAD is what merged. A merged PR
+   with a different HEAD means commits were added after the merge (or the branch was reused).
    If the list command is denied, say "other worktrees not checked" and carry on.
 
 Then reply with:
@@ -31,8 +33,9 @@ Then reply with:
 - **Other worktrees:** one line each for those with uncommitted changes, a NOTES.md, or a merged
   PR: path, branch, number of uncommitted files, whether it has notes, and "PR merged" if so.
   Omit clean ones without notes or a merged PR.
-- **Ready to remove:** for each worktree whose PR merged and that has no uncommitted changes, give
-  the command for the user to run: `git worktree remove <path>`. Don't run it. If a merged one
-  still has uncommitted changes, say so instead; removing it would lose them.
+- **Ready to remove:** for each worktree whose HEAD matches a merged PR's head and that has no
+  uncommitted changes, give the command for the user to run: `git worktree remove <path>`. Don't
+  run it. If a merged one still has uncommitted changes, or commits after the merged head, say so
+  instead; removing it would lose that work.
 
 Do not start the next step until it is confirmed.
