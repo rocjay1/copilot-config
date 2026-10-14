@@ -133,6 +133,10 @@ $plain = [System.IO.Path]::GetFullPath((& git -C $plain rev-parse --show-topleve
 Check 'work starts in a git repo' ((Invoke-Cop '--dry-run' -Cwd $plain).Code -eq 0)
 $r = Invoke-Cop '--dry-run' -Cwd $plain -Env @{ COPILOT_HOME = (Join-Path $plain '.copilot') }
 Check 'work refuses a folder containing COPILOT_HOME' ($r.Code -eq 2 -and $r.Err -match 'pre-approved')
+$r = Invoke-Cop '--dry-run' -Cwd $plain -Env @{ COPILOT_HOME = $plain }
+Check 'work refuses the COPILOT_HOME folder itself' ($r.Code -eq 2 -and $r.Err -match 'pre-approved')
+$r = Invoke-Cop '--dry-run' -Cwd $plain -Env @{ COPILOT_HOME = 'sub/.copilot' }
+Check 'work resolves a relative COPILOT_HOME from the starting folder' ($r.Code -eq 2 -and $r.Err -match 'pre-approved')
 Copy-Item $fixture (Join-Path $plain 'cop.psd1')
 $r = Invoke-Cop '--dry-run' -Cwd $plain -Env @{ COP_CONF = (Join-Path $plain 'cop.psd1') }
 Check 'work refuses a folder containing cop.psd1' ($r.Code -eq 2 -and $r.Err -match 'pre-approved')

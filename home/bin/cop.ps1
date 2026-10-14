@@ -236,10 +236,11 @@ if ($profileName -eq 'work' -and -not $anywhere) {
     $cwd = (Get-Location).ProviderPath
     $cmp = if ($IsWindows) { [StringComparison]::OrdinalIgnoreCase } else { [StringComparison]::Ordinal }
     $sep = [IO.Path]::DirectorySeparatorChar
-    $cwdPrefix = $cwd.TrimEnd('\', '/') + $sep
+    $cwdTrim = $cwd.TrimEnd('\', '/')
     foreach ($p in $copilotHome, $conf) {
-        $full = [IO.Path]::GetFullPath($p)
-        if ($full.StartsWith($cwdPrefix, $cmp)) {
+        # Relative paths resolve against PowerShell's location, not .NET's current directory.
+        $full = [IO.Path]::GetFullPath($p, $cwd).TrimEnd('\', '/')
+        if ($full.Equals($cwdTrim, $cmp) -or $full.StartsWith($cwdTrim + $sep, $cmp)) {
             Stop-Cop "won't start work here: edits under $cwd are pre-approved, and that includes $full. cd into the repo or worktree first (or pass --anywhere)."
         }
     }
