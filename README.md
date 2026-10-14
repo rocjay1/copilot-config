@@ -37,7 +37,8 @@ copilot-config/
 │   │   ├── pr-review/SKILL.md    triage review threads → fix → reply, resolve, re-request
 │   │   ├── friction-log/SKILL.md one-line notes on how the tool behaved, kept on this machine
 │   │   ├── handoff/SKILL.md      write NOTES.md before /compact or /clear
-│   │   └── resume-task/SKILL.md  re-orient at session start
+│   │   ├── resume-task/SKILL.md  re-orient at session start
+│   │   └── onboard-tool/SKILL.md add a CLI, script, or MCP server with the right permissions
 │   └── hooks/
 │       ├── guardrails.json       preToolUse hook registration
 │       └── scripts/block-mutations.ps1
