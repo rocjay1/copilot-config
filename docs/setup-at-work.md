@@ -57,6 +57,24 @@ Add this line, then open a new terminal:
 function cop { & (Join-Path ($env:COPILOT_HOME ?? "$([Environment]::GetFolderPath('UserProfile'))/.copilot") 'bin/cop.ps1') @args }
 ```
 
+Keep `NOTES.md` (written by `handoff`) out of every repo's commits by adding it to your global
+git ignore file. This uses the existing file if you have one:
+
+```powershell
+$ignore = git config --global --get core.excludesFile
+if (-not $ignore) {
+    $ignore = Join-Path ([Environment]::GetFolderPath('UserProfile')) '.gitignore_global'
+    git config --global core.excludesFile $ignore
+}
+$ignore = $ignore -replace '^~', [Environment]::GetFolderPath('UserProfile')
+if (-not (Select-String -Path $ignore -Pattern '^NOTES\.md$' -Quiet -ErrorAction SilentlyContinue)) {
+    Add-Content -Path $ignore -Value 'NOTES.md'
+}
+```
+
+An ignored `NOTES.md` exists only on that machine, in that worktree. Removing the worktree
+removes the notes.
+
 ## 3. Write `~/.copilot/cop.psd1`
 
 1. `Copy-Item templates/cop.psd1.example ~/.copilot/cop.psd1`

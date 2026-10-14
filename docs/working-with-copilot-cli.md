@@ -49,6 +49,20 @@ mid-debug hypotheses. `copilot --continue` resumes the most recent session;
 - Known issue: `preToolUse` hooks reportedly don't fire for subagent tool calls
   (copilot-cli #3013). Don't rely on hooks to guard `/fleet` until that's fixed in your version.
 
+## Worktrees
+
+Worktrees are a good way to run tickets in parallel or take an interruption without stashing:
+each ticket gets its own folder, branch, and `NOTES.md`. They went wrong in agent-driven setups
+because the agent created them and nothing kept track. So:
+
+- **You create and remove them.** Copilot can't create one without asking.
+  `git worktree add ../<repo>-<ticket> -b <ticket>` to start, and
+  `git worktree remove ../<repo>-<ticket>` once the PR merges.
+- **One worktree per ticket**, named after the ticket.
+- **`resume-task` lists the others** that have uncommitted changes or notes. Its
+  `git worktree list` prompts in `cop` (approve it), and is denied in `cop research`.
+- `git worktree list` shows them all; check it when you finish a ticket.
+
 ## Daily loop
 
 One ticket = one branch = one session = one `NOTES.md`. You create or link the ticket; the
