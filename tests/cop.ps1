@@ -85,6 +85,17 @@ $r = Invoke-Cop '--dry-run' -Env @{ COP_CONF = $keyConf }
 Check 'accepts HandoffModel and MaxAiCredits keys' ($r.Code -eq 0 -and $r.Out -match "(?m)^150\r?$")
 Remove-Item $keyConf
 
+# Default model
+$r = Invoke-Cop '--dry-run'
+Check 'starts on Auto, balance tier' ($r.Out -match "(?m)^--model\r?\nauto\r?\n--auto-tier\r?\nbalance\r?$")
+Check 'your own --model wins' (@([regex]::Matches((Invoke-Cop 'work', '--dry-run', '--model', 'gpt-x').Out, '--model')).Count -eq 1)
+$mConf = Join-Path ([System.IO.Path]::GetTempPath()) "cop-model-$([System.IO.Path]::GetRandomFileName()).psd1"
+Set-Content $mConf "@{ Model = '' }"
+Check "Model = '' leaves the model to Copilot" ((Invoke-Cop '--dry-run' -Env @{ COP_CONF = $mConf }).Out -notmatch '--model')
+Set-Content $mConf "@{ Model = 'claude-sonnet-5.5' }"
+Check 'Model accepts a model id' ((Invoke-Cop '--dry-run' -Env @{ COP_CONF = $mConf }).Out -match "(?m)^--model\r?\nclaude-sonnet-5\.5\r?$")
+Remove-Item $mConf
+
 # AI credit cap
 Check 'default cap of 100 credits' ((Invoke-Cop '--dry-run').Out -match "(?m)^--max-ai-credits\r?\n100\r?$")
 Check 'your own --max-ai-credits wins' (@([regex]::Matches((Invoke-Cop 'work', '--dry-run', '--max-ai-credits', '40').Out, '--max-ai-credits')).Count -eq 1)
