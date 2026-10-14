@@ -60,7 +60,8 @@ because the agent created them and nothing kept track. So:
   `git worktree add ../<repo>-<ticket> -b <ticket>` to start, and
   `git worktree remove ../<repo>-<ticket>` once the PR merges.
 - **One worktree per ticket**, named after the ticket.
-- **`resume-task` lists the others** that have uncommitted changes or notes. Its
+- **`resume-task` lists the others** that have uncommitted changes, notes, or a merged PR, and
+  gives you the `git worktree remove` command for merged ones that are clean. Its
   `git worktree list` prompts in `cop` (approve it), and is denied in `cop research`.
 - `git worktree list` shows them all; check it when you finish a ticket.
 

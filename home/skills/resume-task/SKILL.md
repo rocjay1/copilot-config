@@ -14,8 +14,10 @@ Gather state without changing anything:
    first 7 characters per file, and compare the HEAD bullet with `git log --oneline -1`.
 4. If the GitHub CLI is available, check for an open PR on the current branch.
 5. List other worktrees: `git worktree list --porcelain`. For each one other than this, run
-   `git -C <path> status --porcelain` and check whether `<path>/NOTES.md` exists. If the list
-   command is denied, say "other worktrees not checked" and carry on.
+   `git -C <path> status --porcelain` and check whether `<path>/NOTES.md` exists. If the GitHub
+   CLI is available, also check whether its branch's PR has merged:
+   `gh pr list --head <branch> --state merged --json number --jq length` (non-zero means merged).
+   If the list command is denied, say "other worktrees not checked" and carry on.
 
 Then reply with:
 
@@ -26,7 +28,11 @@ Then reply with:
   If HEAD moved, list the commits since the recorded one (`git log --oneline <recorded>..HEAD`).
   Also flag a branch the notes don't name. If there's no State section, say drift inside
   uncommitted files can't be checked.
-- **Other worktrees:** one line each for those with uncommitted changes or a NOTES.md: path,
-  branch, number of uncommitted files, and whether it has notes. Omit clean ones without notes.
+- **Other worktrees:** one line each for those with uncommitted changes, a NOTES.md, or a merged
+  PR: path, branch, number of uncommitted files, whether it has notes, and "PR merged" if so.
+  Omit clean ones without notes or a merged PR.
+- **Ready to remove:** for each worktree whose PR merged and that has no uncommitted changes, give
+  the command for the user to run: `git worktree remove <path>`. Don't run it. If a merged one
+  still has uncommitted changes, say so instead; removing it would lose them.
 
 Do not start the next step until it is confirmed.
