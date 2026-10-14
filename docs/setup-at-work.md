@@ -60,14 +60,24 @@ function cop { & (Join-Path ($env:COPILOT_HOME ?? "$([Environment]::GetFolderPat
 ## 3. Write `~/.copilot/cop.psd1`
 
 1. `Copy-Item templates/cop.psd1.example ~/.copilot/cop.psd1`
-2. If the Atlassian MCP server isn't connected yet, leave its entries as they are. They're
-   unverified names from Atlassian's published list, and a wrong name only means that tool
-   prompts. (Connection steps will be added here once they've been tested.)
-3. Once it's connected, run `/mcp show` in a Copilot session. Note the server's name (the key in
-   `~/.copilot/mcp-config.json`) and its tool names. Make the file match: fix the server name,
-   remove tools that don't exist, and sort any new tools into `ReadTools` (reads only) or
-   `ResearchDeny` (anything that creates, edits, transitions, comments, or deletes). When
-   unsure, leave a tool out; it will prompt.
+2. Connect Atlassian's MCP server under the name the template uses:
+
+   ```powershell
+   copilot mcp add --transport http atlassian https://mcp.atlassian.com/v2/mcp
+   ```
+
+   Then start `cop`, run `/mcp`, and authenticate `atlassian`: you sign in to Atlassian and
+   approve access to your site. Your Atlassian admin can restrict MCP access; if sign-in is
+   refused, ask them. Calls draw on your organization's Rovo credits.
+3. Run `/mcp show atlassian` and compare its tools with the template. The template's names were
+   checked on 1.0.97 against the v2 endpoint. If Atlassian has added tools, sort them into
+   `ReadTools` (reads only) or `ResearchDeny` (anything that creates, edits, transitions,
+   comments, or deletes). When unsure, leave a tool out; it will prompt.
+
+   v2 routes most operations through `discover` plus `executeRead`, `executeWrite`, and
+   `executeDestructive`. Only `executeRead` is pre-approved. That's safe because Atlassian's
+   server enforces the split: a write operation sent through `executeRead` is refused with a 403
+   (checked on a test site).
 4. Add your other CLIs, e.g. the Dynatrace CLI, following the comments in the template. Copilot
    approves a CLI as a whole, not per subcommand, so a CLI that can write needs a read-only shim.
 5. Check the result: `cop research --dry-run` lists every allow and deny flag.

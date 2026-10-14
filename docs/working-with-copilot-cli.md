@@ -120,8 +120,8 @@ Can't name the failure it prevents?            → don't add it
 
 - Rerun `tests/smoke.ps1` after `copilot update`. It covers the profiles' allow and deny rules
   and the guardrail hook (verified on 1.0.97 as a user-level hook).
-- Confirm the Atlassian tool names in `templates/cop.psd1.example` against `/mcp show` on a
-  real site.
+- Atlassian tool names in `templates/cop.psd1.example` were checked against the v2 endpoint on a
+  test site. Recheck with `/mcp show atlassian` if Atlassian changes its tools.
 - Verify the `tools:` names in `reviewer.agent.md` for your CLI version.
 - Run the audit on the existing work config and review it alongside a screenshot of the
   behavior.

@@ -18,27 +18,23 @@
 #                  shell(mycli) approves every mycli subcommand; shell(mycli get) matches nothing.
 @{
     ReadTools = @(
-        # --- Atlassian (Rovo MCP server) ----------------------------------------------
-        # Tool names are from Atlassian's published tool list. Confirm the server name and
-        # the tool names with /mcp show in a session, and remove any that don't exist.
+        # --- Atlassian (Rovo MCP server, v2: https://mcp.atlassian.com/v2/mcp) -----------
+        # Names checked on a test site with Copilot CLI 1.0.97. `atlassian` is the name given to
+        # `copilot mcp add`; change it here if yours differs. v2 has a few primary tools plus
+        # `discover`, which finds other operations, run through executeRead, executeWrite, or
+        # executeDestructive by risk. Only executeRead is pre-approved.
         'atlassian(atlassianUserInfo)'
         'atlassian(getAccessibleAtlassianResources)'
         'atlassian(search)'
-        'atlassian(fetch)'
-        'atlassian(getJiraIssue)'
         'atlassian(searchJiraIssuesUsingJql)'
-        'atlassian(getVisibleJiraProjects)'
-        'atlassian(getJiraProjectIssueTypesMetadata)'
-        'atlassian(getTransitionsForJiraIssue)'
-        'atlassian(getJiraIssueRemoteIssueLinks)'
-        'atlassian(lookupJiraAccountId)'
-        'atlassian(getConfluencePage)'
-        'atlassian(searchConfluenceUsingCql)'
-        'atlassian(getConfluenceSpaces)'
-        'atlassian(getPagesInConfluenceSpace)'
-        'atlassian(getConfluencePageDescendants)'
-        'atlassian(getConfluencePageFooterComments)'
-        'atlassian(getConfluencePageInlineComments)'
+        'atlassian(searchConfluence)'
+        'atlassian(getJiraIssue)'
+        'atlassian(getConfluenceContent)'
+        'atlassian(getGraphContext)'
+        'atlassian(getGraphObject)'
+        'atlassian(getLoomVideo)'
+        'atlassian(discover)'
+        'atlassian(executeRead)'
 
         # --- Dynatrace CLI --------------------------------------------------------------
         # Copilot approves a CLI like this as a whole, never per subcommand (tests/smoke.ps1
@@ -63,12 +59,11 @@
         'atlassian(createJiraIssue)'
         'atlassian(editJiraIssue)'
         'atlassian(transitionJiraIssue)'
-        'atlassian(addCommentToJiraIssue)'
-        'atlassian(addWorklogToJiraIssue)'
-        'atlassian(createIssueLink)'
-        'atlassian(createConfluencePage)'
-        'atlassian(updateConfluencePage)'
-        'atlassian(createConfluenceFooterComment)'
-        'atlassian(createConfluenceInlineComment)'
+        'atlassian(addOrEditJiraIssueComment)'
+        'atlassian(createConfluenceContent)'
+        'atlassian(updateConfluenceContent)'
+        'atlassian(addGraphContext)'
+        'atlassian(executeWrite)'
+        'atlassian(executeDestructive)'
     )
 }
