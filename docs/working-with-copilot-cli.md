@@ -83,8 +83,10 @@ to each repo's `.git/info/exclude`.
    the review (`pr-review`): it triages each thread, proposes fixes and waits, and only replies,
    resolves threads, or re-requests review when you ask. Its `gh api` calls prompt.
 5. Run `handoff` to update `NOTES.md`, commit the change itself if you're ready, then `/clear`.
-   If you just `/exit` (or Ctrl+C) with `NOTES.md` out of date, `cop` offers to run the handoff
-   in that same session for you (about one premium request). `cop --check-notes` shows the status.
+   Asking for the handoff inside the session is cheapest: the prompt cache is still warm. If you
+   just `/exit` (or Ctrl+C) with `NOTES.md` out of date, `cop` offers to run it for you in that
+   session; that resumed run can cost two to three times as much because it rebuilds the cache.
+   `cop --check-notes` shows the status.
 
 Use `/fork "name"` to compare alternatives. Avoid `/fleet` for changes you need to review:
 it produces a lot at once, and hooks reportedly don't guard subagents.

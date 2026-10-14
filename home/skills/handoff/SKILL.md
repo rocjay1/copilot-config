@@ -39,4 +39,6 @@ Rules:
 - Keep it under 300 words, not counting State. A new session reads all of it.
 - Record facts, not the conversation. No "we discussed" or "I tried".
 - Do not include secrets, tokens, account IDs, or credentials.
-- After writing, show the file and stop.
+- Keep it to a few model steps: gather everything in one shell command (status, log, hashes,
+  the existing NOTES.md), then write NOTES.md in a single write. Don't read it back or edit it
+  again; reply with one line saying what changed, and stop. Each step re-sends the whole session.
