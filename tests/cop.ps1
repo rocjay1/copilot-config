@@ -50,10 +50,13 @@ Check 'research includes conf denies' ($r.Out -match [regex]::Escape('--deny-too
 Check 'conf reads are allowed' ($r.Out -match [regex]::Escape('--allow-tool=fakejira(getIssue)'))
 Check 'passthrough keeps -p and its value' ((Invoke-Cop 'work', '--dry-run', '-p', 'hello world').Out -match "(?m)^-p\r?\n^hello world")
 
-foreach ($bad in @('reserach'), @('--dry-run', 'research'), @('-p', 'x', 'work'), @('help')) {
+foreach ($bad in @('reserach'), @('help')) {
     $r = Invoke-Cop $bad
     Check "rejects profile misuse: $($bad -join ' ')" ($r.Code -eq 2)
 }
+# Only the first argument picks the profile; later, work and research are plain words.
+$r = Invoke-Cop '--dry-run', '-p', 'work'
+Check 'a prompt of "work" passes through' ($r.Code -eq 0 -and $r.Out -match '# profile: work' -and $r.Out -match "(?m)^-p\r?\nwork\r?$")
 
 # Everything else passes through to copilot unchanged: cop adds flags, never behavior.
 foreach ($flag in @('--resume'), @('--resume', 'abc-123'), @('--continue'), @('--yolo'), @('--mode', 'autopilot')) {
@@ -113,8 +116,17 @@ $homeRule = '--deny-tool=write(' + [System.IO.Path]::GetFullPath($testHome).Trim
 Check 'work denies edits under COPILOT_HOME' ($r.Out -match ('(?m)^' + [regex]::Escape($homeRule) + '\r?$'))
 Check 'work denies edits to cop.psd1' ($r.Out -match ('(?m)^' + [regex]::Escape("--deny-tool=write($fixture)") + '\r?$'))
 $r = Invoke-Cop '--dry-run' -Env @{ COPILOT_HOME = 'sub/.copilot' }
-$rule = @($r.Out -split '\r?\n' | Where-Object { $_ -like '--deny-tool=write(*/.copilot/`*`*)' })
+$rule = @($r.Out -split '\r?\n' | Where-Object { $_ -match '^--deny-tool=write\(.*[\\/]\.copilot/\*\*\)$' })
 Check 'a relative COPILOT_HOME becomes an absolute rule' ($rule.Count -eq 1 -and $rule[0] -match '^--deny-tool=write\((/|[A-Za-z]:\\).*[\\/]sub[\\/]\.copilot/\*\*\)$')
+Check 'the hook gets the same resolved paths' ($r.Out -match ('(?m)COPILOT_HOME: (/|[A-Za-z]:\\).*[\\/]sub[\\/]\.copilot\r?$'))
+# The launched copilot (a fake that prints its environment) gets the resolved paths
+$fakeBin = Join-Path $testHome 'fakebin'
+New-Item -ItemType Directory -Path $fakeBin -Force | Out-Null
+$fake = "#!/usr/bin/env pwsh`nWrite-Output `"env: `$env:COPILOT_HOME|`$env:COP_CONF`"`n"
+Set-Content (Join-Path $fakeBin 'copilot.ps1') $fake
+if (-not $IsWindows) { Set-Content (Join-Path $fakeBin 'copilot') $fake; & chmod 755 (Join-Path $fakeBin 'copilot') }
+$r = Invoke-Cop @() -Env @{ COPILOT_HOME = 'sub/.copilot'; PATH = $fakeBin + [System.IO.Path]::PathSeparator + $env:PATH }
+Check 'copilot runs with an absolute COPILOT_HOME and COP_CONF' ($r.Out -match ('env: (/|[A-Za-z]:\\).*[\\/]sub[\\/]\.copilot\|' + [regex]::Escape($fixture)))
 Check 'research adds no path denies (it denies all edits)' ((Invoke-Cop 'research', '--dry-run').Out -notmatch '--deny-tool=write\(')
 
 Remove-Item -Recurse -Force $testHome, $workDir -ErrorAction SilentlyContinue

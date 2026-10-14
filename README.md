@@ -151,7 +151,7 @@ On a machine with real systems to connect, continue with
 ./tests/hook.ps1           # guardrail hook against ~50 commands, offline
 ./tests/report.ps1         # friction report counts and redaction, offline
 ./tests/tfcheck.ps1        # tf-check refuses anything that could write, offline
-./tests/smoke.ps1          # live Copilot sessions, ~23 premium requests
+./tests/smoke.ps1          # live Copilot sessions, ~24 premium requests
 ./tests/smoke.ps1 W2 R2    # selected live cases
 ```
 

@@ -53,9 +53,6 @@ if ($rest.Count -gt 0) {
         Stop-Cop "unknown profile '$first' (expected work or research; use -p for a prompt)"
     }
 }
-foreach ($a in $rest) {
-    if ($a -in 'work', 'research') { Stop-Cop "the profile must be the first argument (got '$a' later on)" }
-}
 $dryRun = $rest.Contains('--dry-run')
 $passthru = @($rest | Where-Object { $_ -ne '--dry-run' })
 
@@ -144,6 +141,7 @@ $homeFull = [IO.Path]::GetFullPath($copilotHome, $cwd).TrimEnd('\', '/')
 $confFull = [IO.Path]::GetFullPath($conf, $cwd)
 $workDeny = @("write($homeFull/**)", "write($confFull)")
 
+
 $copilotArgs = [System.Collections.Generic.List[string]]::new()
 foreach ($t in $readTools) { $copilotArgs.Add("--allow-tool=$t") }
 if ($profileName -eq 'research') {
@@ -165,7 +163,7 @@ if ($model -and -not $ownModel) {
 $copilotArgs.AddRange([string[]]$passthru)
 
 if ($dryRun) {
-    Write-Output "# profile: $profileName   conf: $conf"
+    Write-Output "# profile: $profileName   conf: $confFull   COPILOT_HOME: $homeFull"
     Write-Output 'copilot'
     $copilotArgs | Write-Output
     exit 0
@@ -174,5 +172,16 @@ if ($dryRun) {
 # Make cop's helper scripts (tf-check) callable by name in Copilot's shell.
 $env:PATH = $PSScriptRoot + [System.IO.Path]::PathSeparator + $env:PATH
 
-& copilot @copilotArgs
-exit $LASTEXITCODE
+# The guardrail hook protects the same paths from shell redirects. Pass them on resolved, so a
+# relative value still means the launch folder after --resume changes folders. Restored after,
+# since cop may run inside your own PowerShell session.
+$savedEnv = $env:COPILOT_HOME, $env:COP_CONF
+try {
+    $env:COPILOT_HOME = $homeFull
+    if (Test-Path -LiteralPath $confFull -PathType Leaf) { $env:COP_CONF = $confFull }
+    & copilot @copilotArgs
+    $code = $LASTEXITCODE
+} finally {
+    $env:COPILOT_HOME, $env:COP_CONF = $savedEnv
+}
+exit $code

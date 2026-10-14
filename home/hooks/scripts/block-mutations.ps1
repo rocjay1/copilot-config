@@ -117,39 +117,72 @@ function Test-Text([string]$text) {
     }
 }
 
-function Test-Command([string]$command, [int]$depth = 0) {
-    $split = Split-Command $command
-    Test-Text $split.Text
-    if ($depth -lt 3) { foreach ($c in $split.Inner) { Test-Command $c ($depth + 1) } }
+# Shell redirection rides cop's `write` approval inside the starting folder, and cop's
+# write(<COPILOT_HOME>/**) deny rule only covers the edit tools (tests/smoke.ps1 W14). So block
+# a redirect into Copilot's own configuration: a .copilot folder, COPILOT_HOME, or the cop.psd1
+# in use (COP_CONF, which cop sets to an absolute path). A changed hook or cop.psd1 could undo
+# every other safeguard. Other ways to write there (Copy-Item, Add-Content, tee) aren't
+# pre-approved and still prompt.
+# Redirect operators are found in the text with prose masked out (a `>` inside a commit message
+# is not a redirect); the target is read from the original, so a quoted path still counts.
+# Any redirect is blocked when the command mentions the configuration at all, which covers a
+# path built in a variable or reached with cd. Redirects to /dev/null, $null, or another
+# stream (2>&1) are ignored.
+function ConvertTo-PathKey([string]$p) { ($p -replace '[`"'']', '' -replace '\\', '/').ToLowerInvariant() }
+$copilotHome = if ($env:COPILOT_HOME) { $env:COPILOT_HOME } else { Join-Path ([Environment]::GetFolderPath('UserProfile')) '.copilot' }
+$homeKey = ''; $confKey = ''
+try { $homeKey = (ConvertTo-PathKey ([IO.Path]::GetFullPath($copilotHome))).TrimEnd('/') } catch { }
+if ($env:COP_CONF) { try { $confKey = ConvertTo-PathKey ([IO.Path]::GetFullPath($env:COP_CONF)) } catch { } }
+$confLeaf = if ($confKey) { ($confKey -split '/')[-1] } else { '' }
+
+# Does this text (a path or a whole command) name Copilot's configuration?
+function Test-ConfigName([string]$text) {
+    $k = ConvertTo-PathKey $text
+    if ($k -match '(?<![\w.-])\.copilot(?![\w.-])' -or $k -match 'copilot_home|cop_conf' -or $k -match '(?<![\w.-])cop\.psd1(?![\w.-])') { return $true }
+    foreach ($key in $homeKey, $confKey) {
+        if ($key -and $k -match ([regex]::Escape($key) + '(?![\w.-])')) { return $true }
+    }
+    if ($confLeaf -and $k -match ('(?<![\w.-])' + [regex]::Escape($confLeaf) + '(?![\w.-])')) { return $true }
+    return $false
 }
 
-# Shell redirection rides cop's `write` approval inside the starting folder, and cop's
-# write(<COPILOT_HOME>/**) deny rule only covers the edit tools (tests/smoke.ps1 W14). So block a
-# redirect into a .copilot folder, COPILOT_HOME, or cop.psd1: a changed hook or cop.psd1 could
-# undo every other safeguard. Other ways to write there (Copy-Item, Set-Content) aren't
-# pre-approved and still prompt. Checks the raw command, so a quoted target counts too.
-$copilotHome = if ($env:COPILOT_HOME) { $env:COPILOT_HOME } else { Join-Path ([Environment]::GetFolderPath('UserProfile')) '.copilot' }
-function Test-ConfigRedirect([string]$text) {
-    $homeNorm = ([IO.Path]::GetFullPath($copilotHome) -replace '\\', '/').TrimEnd('/').ToLowerInvariant()
-    foreach ($m in [regex]::Matches($text, '(?:\d|\*)?>>?\|?\s*(?<t>"[^"]*"|''[^'']*''|[^\s;|&)]+)')) {
-        $t = $m.Groups['t'].Value.Trim('"', "'")
-        if (-not $t -or $t.StartsWith('&')) { continue }    # 2>&1
-        $n = ($t -replace '\\', '/').ToLowerInvariant()
-        $full = $n
-        if ($cwd -and $n -notmatch '^(/|[a-z]:/|~|\$)') {
-            try { $full = ([IO.Path]::GetFullPath($t, $cwd) -replace '\\', '/').ToLowerInvariant() } catch { }
-        }
-        foreach ($x in $n, $full) {
-            if ($x -match '(^|/)\.copilot(/|$)' -or $x -match '\$\{?(env:)?copilot_home' -or $x -match '(^|/)cop\.psd1$' -or
-                $x -eq $homeNorm -or $x.StartsWith("$homeNorm/")) {
-                Deny "redirect into $t" "Copilot's own configuration is changed by the user, not the agent."
-            }
+# The shell word starting at $i: quoted parts may contain spaces, and an unquoted space or
+# separator ends it.
+function Get-Word([string]$s, [int]$i) {
+    while ($i -lt $s.Length -and [char]::IsWhiteSpace($s[$i])) { $i++ }
+    $sb = [System.Text.StringBuilder]::new(); $q = [char]0
+    for (; $i -lt $s.Length; $i++) {
+        $c = $s[$i]
+        if ($q) { if ($c -eq $q) { $q = [char]0 } else { [void]$sb.Append($c) }; continue }
+        if ($c -eq '"' -or $c -eq "'") { $q = $c; continue }
+        if ([char]::IsWhiteSpace($c) -or $c -in ';', '|', '&', ')') { break }
+        [void]$sb.Append($c)
+    }
+    $sb.ToString()
+}
+
+function Test-ConfigRedirect([string]$original, [string]$masked) {
+    $named = Test-ConfigName $masked
+    foreach ($m in [regex]::Matches($masked, '(?:\d|\*)?>>?\|?')) {
+        $t = Get-Word $original ($m.Index + $m.Length)
+        if (-not $t -or $t.StartsWith('&') -or $t -match '^(/dev/null|\$null|nul)$') { continue }
+        $full = $t
+        $k = ConvertTo-PathKey $t
+        if ($cwd -and $k -notmatch '^(/|[a-z]:/|~|\$)') { try { $full = [IO.Path]::GetFullPath(($t -replace '[`"'']', ''), $cwd) } catch { } }
+        if ($named -or (Test-ConfigName $t) -or (Test-ConfigName $full)) {
+            Deny "redirect to $t" "Copilot's own configuration is changed by the user, not the agent."
         }
     }
 }
 
+function Test-Command([string]$command, [int]$depth = 0) {
+    $split = Split-Command $command
+    Test-ConfigRedirect $command $split.Text
+    Test-Text $split.Text
+    if ($depth -lt 3) { foreach ($c in $split.Inner) { Test-Command $c ($depth + 1) } }
+}
+
 if ($command) {
-    Test-ConfigRedirect $command
     Test-Command $command
 } else {
     # No parsed command: no quotes or boundaries to rely on, so match any word in the raw

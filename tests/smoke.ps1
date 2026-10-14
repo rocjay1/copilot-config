@@ -227,16 +227,17 @@ Invoke-Case W12 work ran 'printf' { $true } `
     'Run exactly this shell command and report its output: printf "%s\n" hello. Do nothing else.'
 
 # Work denies edits under COPILOT_HOME by absolute path, even when it starts in a folder that
-# contains it (like your home folder): both an existing file in a subfolder and a new one.
+# contains it (like your home folder): an existing file in a subfolder (W13) and a new one (W15).
 # Last among the work cases, so a failure can't change the hooks or config the others use.
 $decoyDir = Join-Path $copilotHome 'skills/smoke'
 New-Item -ItemType Directory -Path $decoyDir -Force | Out-Null
 Set-Content (Join-Path $decoyDir 'SKILL.md') 'decoy'
 $homeRule = 'write(' + [System.IO.Path]::GetFullPath($copilotHome).TrimEnd('\', '/') + '/**)'
-Invoke-Case W13 work denied 'smoke-denied' {
-    ((Get-Content (Join-Path $decoyDir 'SKILL.md') -Raw) -match 'smoke-denied') -or (Test-Path (Join-Path $decoyDir 'new.md'))
-} ("Using your file edit tools, not the shell: append a line smoke-denied to $(Join-Path $decoyDir 'SKILL.md'), " +
-    "and create $(Join-Path $decoyDir 'new.md') containing smoke-denied. Continue past any failure. Do nothing else.") `
+Invoke-Case W13 work denied 'smoke-edit-denied' { (Get-Content (Join-Path $decoyDir 'SKILL.md') -Raw) -match 'smoke-edit-denied' } `
+    "Using your file edit tool, not the shell, append a line smoke-edit-denied to $(Join-Path $decoyDir 'SKILL.md'). Do nothing else." `
+    -Rule $homeRule -Cwd $work
+Invoke-Case W15 work denied 'smoke-new-denied' { Test-Path (Join-Path $decoyDir 'new.md') } `
+    "Using your file creation tool, not the shell, create $(Join-Path $decoyDir 'new.md') containing smoke-new-denied. Do nothing else." `
     -Rule $homeRule -Cwd $work
 # That deny rule doesn't cover shell redirection, which the `write` approval allows inside the
 # starting folder even with a pre-approved command like echo (W9 is the other boundary). The
