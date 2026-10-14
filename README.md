@@ -213,10 +213,10 @@ for checking what the CLI actually loaded. Run this first when behavior seems of
   even if the hook misses one.
 - Pre-approved reads can run code that a config file names: git's `core.fsmonitor`,
   `diff.external`, and textconv drivers, `rg --pre`, and Terraform provider binaries. Work
-  denies edits to `.git` and `.terraform` (`.git` verified in 1.0.98, `tests/smoke.ps1` W15,
-  W16), the hook blocks the same settings on the command line or in the environment (`git -c`,
-  `--git-dir`, `GIT_EXTERNAL_DIFF=`, `TF_DATA_DIR=`, `rg --pre`; W17, W18), and cop has git
-  ignore folders that only look like a bare repository (`safe.bareRepository=explicit`; W19). It
+  denies edits to `.git` and `.terraform` (`.git` verified in 1.0.98, `tests/smoke.ps1` W16,
+  W17), the hook blocks the same settings on the command line or in the environment (`git -c`,
+  `--git-dir`, `GIT_EXTERNAL_DIFF=`, `TF_DATA_DIR=`, `rg --pre`; W18, W19), and cop has git
+  ignore folders that only look like a bare repository (`safe.bareRepository=explicit`; W20). It
   does not cover config Copilot can't write but that already exists: a `diff.external` you set
   yourself, in a repo or in `~/.gitconfig`, runs on every `git diff` Copilot makes. `--ext-diff`
   and `--textconv` aren't blocked; they only use drivers already in that config.

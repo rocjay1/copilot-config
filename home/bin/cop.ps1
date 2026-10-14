@@ -144,7 +144,7 @@ $workDeny = @("write($homeFull/**)", "write($confFull)",
     # Files that make a pre-approved read run code: git config (core.fsmonitor, diff.external,
     # textconv drivers) and hooks under any .git folder, a .git file pointing git at another
     # folder, and Terraform's provider binaries, which tf-check validate starts. Relative rules
-    # match by trailing path components, so these cover nested repos too (tests/smoke.ps1 W15, W16).
+    # match by trailing path components, so these cover nested repos too (tests/smoke.ps1 W16, W17).
     'write(.git)', 'write(.git/**)', 'write(.terraform/**)')
 
 $copilotArgs = [System.Collections.Generic.List[string]]::new()
