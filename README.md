@@ -88,7 +88,9 @@ never committed. Start from `templates/cop.psd1.example`.
 
 Work denies file edits to `~/.copilot` and `cop.psd1` wherever it starts (even your home
 folder), and the guardrail hook blocks shell redirects into them, so Copilot can't change its
-own permissions or hooks.
+own permissions or hooks. It also denies edits to `.git` and `.terraform` folders (and `.git`
+files), which could otherwise make a pre-approved read like `git diff` or `tf-check validate`
+run code.
 
 Every `cop` session starts on **Auto, balance tier**, with a soft cap of 100 AI credits;
 `/model` and `/limits` still change them mid-session, and `Model` / `MaxAiCredits` in
@@ -209,6 +211,15 @@ for checking what the CLI actually loaded. Run this first when behavior seems of
   needs PowerShell 7 on `PATH`; a hook that times out fails open (the call goes through the
   normal permission flow). Keep real credentials scoped so that the agent can't make changes
   even if the hook misses one.
+- Pre-approved reads can run code that a config file names: git's `core.fsmonitor`,
+  `diff.external`, and textconv drivers, `rg --pre`, and Terraform provider binaries. Work
+  denies edits to `.git` and `.terraform` (`.git` verified in 1.0.98, `tests/smoke.ps1` W15,
+  W16), the hook blocks the same settings on the command line or in the environment (`git -c`,
+  `--git-dir`, `GIT_EXTERNAL_DIFF=`, `TF_DATA_DIR=`, `rg --pre`; W17, W18), and cop has git
+  ignore folders that only look like a bare repository (`safe.bareRepository=explicit`; W19). It
+  does not cover config Copilot can't write but that already exists: a `diff.external` you set
+  yourself, in a repo or in `~/.gitconfig`, runs on every `git diff` Copilot makes. `--ext-diff`
+  and `--textconv` aren't blocked; they only use drivers already in that config.
 - Repository hooks (`.github/hooks/`) did not fire in a folder Copilot hadn't been told to
   trust (1.0.97, `-p` mode). Don't count on a repo's own hooks until you've trusted the folder
   and seen them fire.

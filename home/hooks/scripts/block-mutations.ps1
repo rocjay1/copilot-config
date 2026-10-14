@@ -97,6 +97,23 @@ function Test-Text([string]$text) {
         if ($m.Success) { Deny (($m.Value -replace '["\\]', '').Trim()) }
     }
 
+    # Ways to make a pre-approved read run code (cop's work profile pre-approves edits too, so
+    # the code could be written first).
+    $codeRules = @(
+        # git: settings on the command line, or config from another folder
+        # (git -c core.fsmonitor=..., git --git-dir=x status).
+        (Tool 'git') + '(?:\s+(?:-C\s+\S+|--?[\w-]+(?:=\S*)?))*?\s+(?-i:-c|--config-env|--git-dir|--work-tree|--exec-path)(?=[\s=]|$)'
+        # ...or in the environment, for git, rg (a config file with --pre), and Terraform
+        # (provider binaries that tf-check validate starts).
+        '(?<![\w-])(?:\$env:)?(?:GIT_(?:DIR|WORK_TREE|COMMON_DIR|INDEX_FILE|EXTERNAL_DIFF|PAGER|EXEC_PATH|EDITOR|SEQUENCE_EDITOR|SSH|SSH_COMMAND|ASKPASS|PROXY_COMMAND|CONFIG\w*)|RIPGREP_CONFIG_PATH|TF_(?:CLI_CONFIG_FILE|DATA_DIR|PLUGIN_CACHE_DIR))\s*='
+        # rg --pre runs a program on every file it searches.
+        (Tool 'rg') + $seg + '\s--pre(?:-glob)?(?=[\s=]|$)'
+    )
+    foreach ($rule in $codeRules) {
+        $m = [regex]::Match($text, $rule, 'IgnoreCase')
+        if ($m.Success) { Deny (($m.Value -replace '["\\]', '').Trim()) 'It can make a read-only command run arbitrary code.' }
+    }
+
     # AWS CLI: allow read operations only; everything else is denied. Walks past global
     # options (with or without values) to find the service and operation.
     foreach ($m in [regex]::Matches($text, (Tool 'aws') + '(?<rest>[^;|&\n)]*)', 'IgnoreCase')) {

@@ -10,7 +10,8 @@ cop is `copilot` plus saved flags. It adds no behavior of its own: --resume, the
 picker, /exit, and everything else work exactly as in copilot.
 
   work      (default) The reads below and file edits under the starting folder run without
-            prompting. Edits to <COPILOT_HOME> and cop.psd1 are denied wherever you start.
+            prompting. Edits to <COPILOT_HOME> and cop.psd1 are denied wherever you start,
+            and so are edits to .git and .terraform folders, which can make a read run code.
             Everything else prompts: pushes, PRs, ticket changes, unlisted commands.
   research  Same reads. File edits and the listed external writes are denied outright;
             any other shell command still prompts, so read what you approve.
@@ -139,8 +140,12 @@ if (Test-Path -LiteralPath $conf -PathType Leaf) {
 # relative path resolves against PowerShell's location, not .NET's current directory.
 $homeFull = [IO.Path]::GetFullPath($copilotHome, $cwd).TrimEnd('\', '/')
 $confFull = [IO.Path]::GetFullPath($conf, $cwd)
-$workDeny = @("write($homeFull/**)", "write($confFull)")
-
+$workDeny = @("write($homeFull/**)", "write($confFull)",
+    # Files that make a pre-approved read run code: git config (core.fsmonitor, diff.external,
+    # textconv drivers) and hooks under any .git folder, a .git file pointing git at another
+    # folder, and Terraform's provider binaries, which tf-check validate starts. Relative rules
+    # match by trailing path components, so these cover nested repos too (tests/smoke.ps1 W15, W16).
+    'write(.git)', 'write(.git/**)', 'write(.terraform/**)')
 
 $copilotArgs = [System.Collections.Generic.List[string]]::new()
 foreach ($t in $readTools) { $copilotArgs.Add("--allow-tool=$t") }
@@ -162,8 +167,20 @@ if ($model -and -not $ownModel) {
 }
 $copilotArgs.AddRange([string[]]$passthru)
 
+# Git must not treat a folder Copilot wrote as a bare repository, whose config it would load
+# (the .git deny rules can't cover a folder with any name). Added as a command-line setting
+# through the environment, after any the caller set, so it applies to every git in the session.
+$gitCount = 0
+if (-not [int]::TryParse("$env:GIT_CONFIG_COUNT", [ref]$gitCount)) { $gitCount = 0 }
+$gitEnv = [ordered]@{
+    GIT_CONFIG_COUNT             = "$($gitCount + 1)"
+    "GIT_CONFIG_KEY_$gitCount"   = 'safe.bareRepository'
+    "GIT_CONFIG_VALUE_$gitCount" = 'explicit'
+}
+
 if ($dryRun) {
     Write-Output "# profile: $profileName   conf: $confFull   COPILOT_HOME: $homeFull"
+    Write-Output "# env: $(($gitEnv.Keys | ForEach-Object { "$_=$($gitEnv[$_])" }) -join ' ')"
     Write-Output 'copilot'
     $copilotArgs | Write-Output
     exit 0
@@ -174,14 +191,17 @@ $env:PATH = $PSScriptRoot + [System.IO.Path]::PathSeparator + $env:PATH
 
 # The guardrail hook protects the same paths from shell redirects. Pass them on resolved, so a
 # relative value still means the launch folder after --resume changes folders. Restored after,
-# since cop may run inside your own PowerShell session.
+# since cop may run inside your own PowerShell session; so is cop's git setting.
 $savedEnv = $env:COPILOT_HOME, $env:COP_CONF
+$savedGit = @{}; foreach ($k in $gitEnv.Keys) { $savedGit[$k] = [Environment]::GetEnvironmentVariable($k) }
 try {
     $env:COPILOT_HOME = $homeFull
+    foreach ($k in $gitEnv.Keys) { [Environment]::SetEnvironmentVariable($k, $gitEnv[$k]) }
     if (Test-Path -LiteralPath $confFull -PathType Leaf) { $env:COP_CONF = $confFull }
     & copilot @copilotArgs
     $code = $LASTEXITCODE
 } finally {
     $env:COPILOT_HOME, $env:COP_CONF = $savedEnv
+    foreach ($k in $savedGit.Keys) { [Environment]::SetEnvironmentVariable($k, $savedGit[$k]) }
 }
 exit $code

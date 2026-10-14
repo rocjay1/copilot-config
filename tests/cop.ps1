@@ -41,7 +41,7 @@ function Check([string]$label, [bool]$ok) {
 # Profiles
 $r = Invoke-Cop '--dry-run'
 Check 'default profile is work' ($r.Code -eq 0 -and $r.Out -match '# profile: work')
-Check 'work denies nothing but its own config' (@($r.Out -split '\r?\n' | Where-Object { $_ -like '--deny-tool=*' }).Count -eq 2)
+Check 'work denies only its own config and code-running folders' (@($r.Out -split '\r?\n' | Where-Object { $_ -like '--deny-tool=*' }).Count -eq 5)
 Check 'work pre-approves file edits' ($r.Out -match '(?m)^--allow-tool=write\r?$')
 $r = Invoke-Cop 'research', '--dry-run'
 Check 'research adds deny rules' ($r.Code -eq 0 -and $r.Out -match '# profile: research' -and $r.Out -match '--deny-tool=write' -and $r.Out -match '--deny-tool=shell\(git push\)')
@@ -127,6 +127,14 @@ Set-Content (Join-Path $fakeBin 'copilot.ps1') $fake
 if (-not $IsWindows) { Set-Content (Join-Path $fakeBin 'copilot') $fake; & chmod 755 (Join-Path $fakeBin 'copilot') }
 $r = Invoke-Cop @() -Env @{ COPILOT_HOME = 'sub/.copilot'; PATH = $fakeBin + [System.IO.Path]::PathSeparator + $env:PATH }
 Check 'copilot runs with an absolute COPILOT_HOME and COP_CONF' ($r.Out -match ('env: (/|[A-Za-z]:\\).*[\\/]sub[\\/]\.copilot\|' + [regex]::Escape($fixture)))
+$r = Invoke-Cop '--dry-run'
+# ...and edits that would make a pre-approved read run code
+foreach ($t in 'write(.git)', 'write(.git/**)', 'write(.terraform/**)') {
+    Check "work denies $t" ($r.Out -match ('(?m)^' + [regex]::Escape("--deny-tool=$t") + '\r?$'))
+}
+# Git won't load config from a folder that only looks like a bare repo; added after the caller's settings
+Check 'git treats only explicit bare repos as repos' ((Invoke-Cop '--dry-run').Out -match '(?m)^# env: GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe\.bareRepository GIT_CONFIG_VALUE_0=explicit\r?$')
+Check 'the git setting follows existing ones' ((Invoke-Cop '--dry-run' -Env @{ GIT_CONFIG_COUNT = '2' }).Out -match '(?m)^# env: GIT_CONFIG_COUNT=3 GIT_CONFIG_KEY_2=safe\.bareRepository GIT_CONFIG_VALUE_2=explicit\r?$')
 Check 'research adds no path denies (it denies all edits)' ((Invoke-Cop 'research', '--dry-run').Out -notmatch '--deny-tool=write\(')
 
 Remove-Item -Recurse -Force $testHome, $workDir -ErrorAction SilentlyContinue
