@@ -42,8 +42,11 @@
         'atlassian(executeRead)'
 
         # --- Dynatrace CLI --------------------------------------------------------------
-        # Copilot approves a CLI like this as a whole, never per subcommand (tests/smoke.ps1
-        # W5 and W6). Replace <dtcli> with your CLI's command name, then uncomment one option.
+        # The onboard-tool skill walks through this, and prefers the shim even for a read-only
+        # CLI, so it can also pin the host and refuse debug or output flags. Copilot approves a
+        # CLI like this as a whole, never per subcommand (tests/smoke.ps1 W5 and W6). Replace
+        # <dtcli> with your CLI's command name, then uncomment one option. For a script run as
+        # `python <script>`, the shim runs it; never approve python itself.
         #
         # If the CLI only reads, approve it directly:
         # 'shell(<dtcli>)'
