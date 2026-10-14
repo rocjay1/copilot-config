@@ -9,8 +9,9 @@ Prevents: a tool approved wholesale that can write or send data elsewhere, an in
 (`python`) pre-approved, a credential exposed to Copilot, and approved code that changes
 without review.
 
-Run in `cop` (work) from a folder other than `<COPILOT_HOME>` (`~/.copilot`), so every config
-write prompts. Gather first, read-only, and don't run the tool yet, not even `--help`:
+Run in `cop` (work) from an unrelated repo or folder, never your home folder or anything
+containing `<COPILOT_HOME>` (`~/.copilot`) or `COP_CONF`: work pre-approves edits inside the
+working folder, and every config write here should prompt. Gather first, read-only, and don't run the tool yet, not even `--help`:
 - The command line that runs it, where its code and dependencies live, who maintains it.
 - Its subcommands or MCP tools and flags, from the source.
 - How it authenticates, and how large a typical result is.
@@ -29,15 +30,20 @@ write prompts. Gather first, read-only, and don't run the tool yet, not even `--
    - **A launcher that is also the shim**, `<COPILOT_HOME>/bin/<name>.ps1`. It passes only the
      read subcommands, refuses everything else and every write flag, and hard-codes the host
      or tenant. For a script it runs the tool's own interpreter by absolute path
-     (`& <venv>/Scripts/python.exe -E -s <script> @args`). Never approve an interpreter itself.
+     (`& <venv>/Scripts/python.exe -E -s <script> @args`; `<venv>/bin/python` on macOS or
+     Linux, which also need an executable extensionless copy). Never approve an interpreter.
    - **Rule:** `shell(<name>)` in `ReadTools`. For MCP, each tool in `ReadTools` or `ResearchDeny`.
      Writes stay with the user, outside Copilot.
    - **Output limits:** narrow time windows, row limits, or summary formats, in the launcher.
    - **A usage skill**, written with `new-skill`: typical queries, limits, what never to do.
+   - **For an MCP server**, no launcher: register it with `copilot mcp add` under the same name
+     the rules use.
 5. Once approved, write the launcher, the `cop.psd1` entry (with a comment on why), and the
    usage skill. Everything stays local: nothing site-specific goes into copilot-config.
 6. Verify, without writing anything real:
    - `cop research --dry-run` lists the rule.
+   - `Get-Command <name>` resolves to the launcher, not the original CLI. For MCP, `/mcp show
+     <name>` lists the tools the rules name.
    - Read the launcher's refusal branch, then run it with a made-up subcommand and with a
      refused flag: both must refuse.
    - The user starts `cop research` and asks for one typical read: no prompt, reasonable size.
