@@ -1,6 +1,6 @@
 ---
 name: handoff
-description: Write or update NOTES.md at the repo root so a fresh session can pick up this work. Use before /compact or /clear, before handing work to someone else, or when asked for a handoff. Not needed just to continue later: resuming the session (`--resume`) brings the whole conversation back.
+description: Write or update NOTES.md at the repo root so a fresh session can pick up this work. Use before /compact or /clear, before handing work to someone else, or when asked for a handoff. Not needed just to continue later, since resuming the session (`--resume`) brings the whole conversation back.
 ---
 
 # Handoff

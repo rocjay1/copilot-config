@@ -40,6 +40,24 @@ jobs:
             if ($errs) { $bad++; Write-Output "$($f.FullName): $($errs.Message -join '; ')" }
           }
           if ($bad) { exit 1 }
+      - name: Skill frontmatter
+        # Copilot skips a skill whose frontmatter isn't valid YAML; an unquoted ": " in the
+        # description is the easy mistake.
+        run: |
+          $bad = 0
+          foreach ($f in Get-ChildItem home -Recurse -Filter SKILL.md -File) {
+            $lines = @(Get-Content $f.FullName)
+            $end = [Array]::IndexOf($lines, '---', 1)
+            $front = if ($lines[0] -eq '---' -and $end -gt 0) { $lines[1..($end - 1)] } else { @() }
+            $name = $front | Where-Object { $_ -match '^name: (.+)$' } | ForEach-Object { $Matches[1] }
+            $desc = $front | Where-Object { $_ -match '^description: (.+)$' } | ForEach-Object { $Matches[1] }
+            $why = if (-not $front) { 'no frontmatter' }
+              elseif ($name -ne $f.Directory.Name) { "name '$name' differs from its folder" }
+              elseif (-not $desc) { 'no description' }
+              elseif ($desc -notmatch '^["'']' -and $desc -match ': |^[\[{>|*&!%@`#-]|\s#') { 'description needs quoting (": ", " #", or a leading special character)' }
+            if ($why) { $bad++; Write-Output "$($f.FullName): $why" }
+          }
+          if ($bad) { exit 1 }
       - name: Launcher tests
         run: ./tests/cop.ps1
       - name: Hook tests
