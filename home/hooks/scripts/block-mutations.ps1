@@ -51,8 +51,15 @@ function Deny([string]$what) {
 
 # One command's worth of text: stops at a command separator.
 $seg = '[^;|&\n]*?'
-# A tool name as a word, optionally with a Windows extension: terraform, terraform.exe.
-function Tool([string]$names) { "(?<![\w.-])($names)(\.exe|\.cmd)?(?![\w.-])" }
+# A tool name where a command starts, optionally with a Windows extension: terraform,
+# terraform.exe. "Where a command starts" means the start of the text, after a separator
+# (; & | ( { newline $( backtick), or inside sh -c "..." / pwsh -Command "...", after any
+# sudo/env/VAR=value prefixes. A tool name inside a commit message or other argument is not
+# a command and doesn't match.
+$cmdStart = '(?:^|[;&|(\n{`]|\$\(|\s-(?:c|Command)\s+[''"])\s*(?:(?:sudo|env|time|nohup|exec)\s+(?:-\S+\s+)*|\w+=\S*\s+)*[''"]?'
+# Without a parsed command there are no command boundaries to anchor to; match any word.
+if (-not $command) { $cmdStart = '(?<![\w.-])' }
+function Tool([string]$names) { $cmdStart + "(?:$names)(?:\.exe|\.cmd)?(?![\w.-])[''""]?" }
 # A verb as its own argument, optionally quoted: apply, 'apply', "apply".
 function Verb([string]$verbs) { "\s['""]?($verbs)['""]?(?=\s|$|[;|&)])" }
 
@@ -78,8 +85,8 @@ foreach ($rule in $rules) {
 # (with or without values) to find the service and operation.
 $awsReadOps = '^(describe|get|list|head|query|scan|search|lookup|wait|help|filter|validate|batch-get|select|tail)'
 $awsValueOpts = '^--(profile|region|output|query|endpoint-url|cli-read-timeout|cli-connect-timeout|ca-bundle|color|cli-binary-format)$'
-foreach ($m in [regex]::Matches($text, (Tool 'aws') + '([^;|&\n)]*)', 'IgnoreCase')) {
-    $tokens = @($m.Groups[3].Value.Trim() -split '\s+' | Where-Object { $_ } | ForEach-Object { $_.Trim('''', '"') })
+foreach ($m in [regex]::Matches($text, (Tool 'aws') + '(?<rest>[^;|&\n)]*)', 'IgnoreCase')) {
+    $tokens = @($m.Groups['rest'].Value.Trim() -split '\s+' | Where-Object { $_ } | ForEach-Object { $_.Trim('''', '"') })
     $words = [System.Collections.Generic.List[string]]::new()
     for ($i = 0; $i -lt $tokens.Count -and $words.Count -lt 2; $i++) {
         $t = $tokens[$i]

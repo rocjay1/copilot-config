@@ -58,6 +58,17 @@ $cases = @(
     ,@('allow', 'kubectl describe pod create-job')
     ,@('allow', 'kubectl rollout status deploy/x')
     ,@('allow', 'helm list -A')
+    # Tool names inside arguments are not commands (commit messages, PR bodies)
+    ,@('allow', 'git commit -m "Lock the AWS provider, and add tests"')
+    ,@('allow', 'git commit -m "Document terraform apply steps"')
+    ,@('allow', 'gh pr create --body "Run kubectl delete pod x to retry"')
+    # ...but commands in the usual wrappers and prefixes still are
+    ,@('deny', 'bash -c "terraform apply"')
+    ,@('deny', 'pwsh -Command "aws ec2 terminate-instances --instance-ids i-1"')
+    ,@('deny', 'echo done; aws s3 rm s3://b/k')
+    ,@('deny', 'TF_LOG=1 terraform apply')
+    ,@('deny', 'sudo kubectl delete pod x')
+    ,@('deny', 'echo $(aws ec2 terminate-instances --instance-ids i-1)')
     # git reads that write files
     ,@('deny', 'git log -p --output=/tmp/x')
     ,@('deny', 'git diff --output ~/.copilot/hooks/guardrails.json')
