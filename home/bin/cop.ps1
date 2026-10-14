@@ -27,7 +27,9 @@ to change it (0 turns it off), pass --max-ai-credits yourself, or raise it in-se
 --check-notes reports whether NOTES.md is current (exit 0) or out of date (exit 1).
 
 When an interactive work session ends (/exit or Ctrl+C), cop checks NOTES.md against the
-handoff fingerprint and, if it's out of date, offers to run the handoff skill in that session.
+handoff fingerprint and, if it's out of date, offers to run the handoff skill in that session,
+on a cheap model (HandoffModel in cop.psd1). When a research session ends, it prints how to
+continue that session with work permissions.
 
 Refuses flags that pre-approve everything or let the model approve its own prompts
 (--allow-all*, --yolo, --autopilot, --mode autopilot, --assisted-approval), and clears the
@@ -187,6 +189,12 @@ $researchDeny = [System.Collections.Generic.List[string]]@(
 # raise it mid-session with /limits). MaxAiCredits in cop.psd1 overrides it; 0 turns it off.
 $maxAiCredits = 100
 
+# Model for the handoff cop offers after a work session. The resumed run has to rebuild the
+# prompt cache, so a cheap model matters: 'auto-efficiency' (Copilot's cheapest suitable model)
+# cost about 0.5 AI credits against 4-14 on the session's model. Any model id works, or
+# 'session' to keep the session's model. Set HandoffModel in cop.psd1 to change it.
+$handoffModel = 'auto-efficiency'
+
 if ($env:COP_CONF) {
     if (-not (Test-Path -LiteralPath $env:COP_CONF -PathType Leaf)) { Stop-Cop "COP_CONF=$env:COP_CONF not found" }
     $conf = $env:COP_CONF
@@ -200,9 +208,10 @@ if (Test-Path -LiteralPath $conf -PathType Leaf) {
     # A data file: Import-PowerShellDataFile evaluates no code.
     $data = Import-PowerShellDataFile -LiteralPath $conf
     foreach ($key in $data.Keys) {
-        if ($key -notin 'ReadTools', 'ResearchDeny', 'MaxAiCredits') { Stop-Cop "unknown key '$key' in $conf (expected ReadTools, ResearchDeny, MaxAiCredits)" }
+        if ($key -notin 'ReadTools', 'ResearchDeny', 'MaxAiCredits', 'HandoffModel') { Stop-Cop "unknown key '$key' in $conf (expected ReadTools, ResearchDeny, MaxAiCredits, HandoffModel)" }
     }
     if ($data.Contains('MaxAiCredits')) { $maxAiCredits = [int]$data.MaxAiCredits }
+    if ($data.Contains('HandoffModel')) { $handoffModel = [string]$data.HandoffModel }
     foreach ($t in @($data.ReadTools)) { if ($t) { $readTools.Add([string]$t) } }
     foreach ($t in @($data.ResearchDeny)) { if ($t) { $researchDeny.Add([string]$t) } }
 } else {
@@ -262,7 +271,12 @@ if ($offerHandoff) {
     if ($status.Stale) {
         $answer = Read-Host "cop: NOTES.md is out of date ($($status.Reason)). Run the handoff skill now? [Y/n]"
         if ($answer -notmatch '^\s*(n|no)\s*$') {
-            & copilot @permissionArgs --resume $sessionId -p 'Run the handoff skill to update NOTES.md for this session. Do nothing else.'
+            $modelArgs = switch ($handoffModel) {
+                'auto-efficiency' { @('--model', 'auto', '--auto-tier', 'efficiency') }
+                { $_ -in '', 'session' } { @() }
+                default { @('--model', $handoffModel) }
+            }
+            & copilot @permissionArgs @modelArgs --resume $sessionId -p 'Run the handoff skill to update NOTES.md for this session. Do nothing else.'
         }
     }
 }

@@ -88,11 +88,12 @@ to each repo's `.git/info/exclude`.
    (or approve the prompt) and ask for a Copilot review. When it lands, ask it to work through
    the review (`pr-review`): it triages each thread, proposes fixes and waits, and only replies,
    resolves threads, or re-requests review when you ask. Its `gh api` calls prompt.
-5. Run `handoff` to update `NOTES.md`, commit the change itself if you're ready, then `/clear`.
-   Asking for the handoff inside the session is cheapest: the prompt cache is still warm. If you
-   just `/exit` (or Ctrl+C) with `NOTES.md` out of date, `cop` offers to run it for you in that
-   session; that resumed run can cost two to three times as much because it rebuilds the cache.
-   `cop --check-notes` shows the status.
+5. Update `NOTES.md` with the handoff, commit the change itself if you're ready, then `/clear`
+   or `/exit`. The easy way: just `/exit`. If `NOTES.md` is out of date, `cop` offers to run the
+   handoff in that same session on Copilot's cheapest suitable model (about 0.5 AI credits
+   measured, against about 4 for asking inside the session on its own model). Ask inside the
+   session instead when the notes need the session model's judgment; `HandoffModel` in
+   `cop.psd1` changes the exit default. `cop --check-notes` shows the status.
 
 Use `/fork "name"` to compare alternatives. Avoid `/fleet` for changes you need to review:
 it produces a lot at once, and whether hooks guard subagents depends on your CLI version (#3013
