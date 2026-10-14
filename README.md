@@ -173,6 +173,10 @@ files pulling in others via `@` includes. Run this first when behavior seems off
 - Repository hooks (`.github/hooks/`) did not fire in a folder Copilot hadn't been told to
   trust (1.0.97, `-p` mode). Don't count on a repo's own hooks until you've trusted the folder
   and seen them fire.
+- In 1.0.97, a preToolUse hook that answers "allow" **overrides deny rules**, and approves the
+  whole command line, including anything chained after `&&`. So no hook here ever answers
+  "allow", and any hook that does (for example, one left over from another setup) quietly
+  undoes research's denies. Read every hook `scripts/audit.ps1` lists.
 - In 1.0.97, a `write` approval also covers shell redirection (`cmd > file`) inside the working
   folder, despite what `copilot help permissions` says. It doesn't approve the command itself
   or a path outside the folder (`tests/smoke.ps1` W9, W10). Recheck after `copilot update`.

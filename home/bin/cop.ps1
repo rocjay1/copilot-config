@@ -86,7 +86,7 @@ $readTools = [System.Collections.Generic.List[string]]@(
     # covered by the work profile's `write` approval only inside the working folder, and never
     # approves the command itself (tests/smoke.ps1 W9, W10).
     'shell(cat)', 'shell(ls)', 'shell(head)', 'shell(tail)', 'shell(wc)', 'shell(grep)',
-    'shell(pwd)', 'shell(diff)',
+    'shell(pwd)', 'shell(diff)', 'shell(rg)',
     'shell(Get-Content)', 'shell(Get-ChildItem)', 'shell(Select-String)', 'shell(Test-Path)',
     'shell(Get-Item)', 'shell(Get-Location)', 'shell(Resolve-Path)'
 )

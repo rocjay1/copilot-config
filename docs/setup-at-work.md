@@ -31,7 +31,9 @@ another setup keep firing alongside these.
    `Copy-Item -Recurse ~/.copilot "$HOME/.copilot.bak-$(Get-Date -Format yyyyMMdd)"`.
 2. Run `./scripts/audit.ps1 <a-work-repo>` and remove anything that isn't from this repo: skills,
    agents, hook configs, and `AGENTS.md` or `CLAUDE.md` files that duplicate instructions.
-3. The audit prints saved approvals from `~/.copilot/permissions-config.json`. Remove every entry
+3. Read each hook the audit lists. A hook that can answer `"permissionDecision":"allow"`
+   overrides research's deny rules (verified on 1.0.97); this setup's guardrail only denies.
+4. The audit prints saved approvals from `~/.copilot/permissions-config.json`. Remove every entry
    that covers a write (ticket creation, comments, `git push`, `gh pr create`, file writes). A
    saved approval lets that tool run without a prompt in the work profile. Research's deny rules
    still win.
