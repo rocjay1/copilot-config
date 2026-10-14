@@ -11,15 +11,16 @@ unasked, or grow into prose nobody maintains.
 Gather first:
 - The procedure: what actually worked in this session (not the dead ends), or the user's steps.
 - The failure it prevents, in one sentence. If nobody can name one, stop: it isn't worth a skill.
-- Existing skills in `~/.copilot/skills/` and the repo's `.github/skills/`. Read any that
-  overlap; extending one beats adding another.
+- Existing skills: personal ones in `<COPILOT_HOME>/skills/` (`$env:COPILOT_HOME`, or
+  `~/.copilot`), `~/.claude/skills/`, and `~/.agents/skills/`; the repo's `.github/skills/`,
+  `.claude/skills/`, and `.agents/skills/`. Read any that overlap; extending one beats adding another.
 
 1. Check it belongs in a skill. A rule that always applies is an instructions line; a side
    effect that must never happen needs a deny rule or hook; a one-off needs nothing. If it
    isn't a skill, say what it is instead and stop.
 2. Propose, and wait for approval:
    - **Name:** lowercase-hyphenated, named for the task (`cab-draft`, not `helper`).
-   - **Location:** `~/.copilot/skills/<name>/SKILL.md` for personal or site-specific skills
+   - **Location:** `<COPILOT_HOME>/skills/<name>/SKILL.md` for personal or site-specific skills
      (it stays on this machine; `install.ps1` never touches it), or `.github/skills/<name>/`
      in a team repo, by PR.
    - **Description:** what it does, then "Use when ..." with the phrases the user would
@@ -48,5 +49,5 @@ Gather first:
 Stop conditions:
 - Over about 450 words, or more than one task: propose splitting it.
 - Don't edit skills installed from copilot-config (`work-ticket`, `pr-review`, `handoff`,
-  `resume-task`, `friction-log`, `new-skill`) in `~/.copilot/skills`; the next install
+  `resume-task`, `friction-log`, `new-skill`) in `<COPILOT_HOME>/skills`; the next install
   overwrites them. Change those in the copilot-config repo by PR.
