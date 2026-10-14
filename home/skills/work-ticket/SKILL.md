@@ -19,9 +19,10 @@ Gather first:
 2. Implement in batches, following the batching rule in the personal instructions. In each
    batch summary, call out anything risky or non-obvious: IAM scope, deletions, renames,
    replaced resources, new dependencies.
-3. When the plan is done, run the approved verification commands and report the results. Ask
-   before each run of a command that needs cloud credentials or takes a state lock, such as
-   `terraform plan`.
+3. When the plan is done, run the approved verification commands and report the results. For
+   Terraform, use `tf-check fmt` and `tf-check validate` (pre-approved, read-only); `terraform
+   init`, `test`, and `plan` prompt. Ask before each run of a command that needs cloud
+   credentials or takes a state lock, such as `terraform plan`.
 4. Review the local changes before any PR: run the built-in `code-review` and `security-review`
    subagents (the agents behind `/review` and `/security-review`; both read-only) in parallel
    with your task tool. Triage what they find like review comments: propose fixes for the ones

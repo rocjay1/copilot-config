@@ -46,5 +46,7 @@ jobs:
         run: ./tests/hook.ps1
       - name: Report tests
         run: ./tests/report.ps1
+      - name: tf-check tests
+        run: ./tests/tfcheck.ps1
       - name: Install dry run
         run: ./scripts/install.ps1 -DryRun

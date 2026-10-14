@@ -71,8 +71,10 @@ agent only reads it. `NOTES.md` is your working state, not part of the change: k
 commits by adding it once to your global gitignore (`git config --global core.excludesFile`) or
 to each repo's `.git/info/exclude`.
 
-1. `cop research` to investigate: tickets, logs, monitoring, PR history. It can't edit files, and the
-   common external writes are denied; anything else still prompts, so read what you approve.
+1. `cop research` to investigate: tickets, logs, monitoring, PR history. It can't edit files,
+   and the common external writes are denied; anything else still prompts, so read what you
+   approve. When you `/exit`, `cop` prints `cop work --resume <id>`: run it to continue the same
+   session, findings included, with work permissions.
 2. `cop` in the repo to make the change. Say "resume" to run `resume-task` if continuing work.
 3. Ask it to work the ticket (`work-ticket`). Press Shift+Tab into plan mode first if you want to
    edit the plan in your editor (Ctrl+Y) before approving it. It proposes a plan and waits, then changes at most

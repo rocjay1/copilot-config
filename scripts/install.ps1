@@ -61,6 +61,23 @@ Get-ChildItem -LiteralPath $src -Recurse -File | Where-Object Name -ne '.DS_Stor
     }
 }
 
+# macOS/Linux: bash runs a script by name only without its extension, so give each bin/*.ps1
+# an executable twin (bin/tf-check next to bin/tf-check.ps1). Windows PowerShell needs neither.
+if (-not $IsWindows) {
+    foreach ($f in Get-ChildItem -LiteralPath (Join-Path $src 'bin') -Filter '*.ps1' -File) {
+        $twin = Join-Path $dest "bin/$($f.BaseName)"
+        $content = Get-Content -LiteralPath $f.FullName -Raw
+        if ((Test-Path -LiteralPath $twin) -and (Get-Content -LiteralPath $twin -Raw) -ceq $content) { $unchanged++; continue }
+        Write-Output "  $(if (Test-Path -LiteralPath $twin) { 'update' } else { 'add   ' })  bin/$($f.BaseName)   (executable copy of $($f.Name))"
+        if (Test-Path -LiteralPath $twin) { $updated++ } else { $added++ }
+        if (-not $DryRun) {
+            New-Item -ItemType Directory -Force -Path (Split-Path -Parent $twin) | Out-Null
+            [System.IO.File]::WriteAllText($twin, $content, [System.Text.UTF8Encoding]::new($false))
+            & chmod 755 $twin
+        }
+    }
+}
+
 Write-Output ''
 Write-Output "added: $added  updated: $updated  unchanged: $unchanged"
 if (-not $DryRun -and ($added + $updated) -gt 0) {

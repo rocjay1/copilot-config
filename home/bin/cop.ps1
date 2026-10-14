@@ -149,11 +149,14 @@ $readTools = [System.Collections.Generic.List[string]]@(
     'shell(gh issue view:*)', 'shell(gh issue list:*)',
     'shell(gh run view:*)', 'shell(gh run list:*)', 'shell(git hash-object)',
     # Read-only file utilities (bash, then PowerShell). Left out on purpose because they can
-    # write: sort -o, tree -o, find -delete/-exec, tee. Shell redirection (cat x > y) is
-    # covered by the work profile's `write` approval only inside the working folder, and never
-    # approves the command itself (tests/smoke.ps1 W9, W10).
+    # write: sort -o, tree -o, find -delete/-exec, tee. printf and echo can't write on their own.
+    # Shell redirection (cat x > y) is covered by the work profile's `write` approval only inside
+    # the working folder, and never approves the command itself (tests/smoke.ps1 W9, W10).
     'shell(cat)', 'shell(ls)', 'shell(head)', 'shell(tail)', 'shell(wc)', 'shell(grep)',
-    'shell(pwd)', 'shell(diff)', 'shell(rg)',
+    'shell(pwd)', 'shell(diff)', 'shell(rg)', 'shell(printf)', 'shell(echo)',
+    # tf-check runs only read-only Terraform commands (fmt -check, validate, version, providers);
+    # plan, init, test, and the rest still go through terraform and prompt.
+    'shell(tf-check)',
     'shell(Get-Content)', 'shell(Get-ChildItem)', 'shell(Select-String)', 'shell(Test-Path)',
     'shell(Get-Item)', 'shell(Get-Location)', 'shell(Resolve-Path)'
 )
@@ -221,13 +224,15 @@ if ($maxAiCredits -gt 0 -and -not $ownLimit) {
 }
 $copilotArgs.AddRange($passthru)
 
-# Handoff on exit: for an interactive work session that cop starts itself, pin its session ID
-# so that afterwards, if NOTES.md is out of date, cop can offer to run the handoff skill in that
-# same session (copilot --resume <id> -p), with the session's context.
+# For an interactive session that cop starts itself, pin its session ID. Afterwards:
+# - work: if NOTES.md is out of date, offer to run the handoff skill in that same session
+#   (copilot --resume <id> -p), with the session's context;
+# - research: print how to continue the same session with work permissions.
 $isPrompt = @($passthru | Where-Object { $_ -in '-p', '--prompt' -or $_ -like '--prompt=*' }).Count -gt 0
 $ownsSession = @($passthru | Where-Object { $_ -match '^(-r|--resume|--continue|--session-id)(=.*)?$' }).Count -eq 0
-$offerHandoff = $profileName -eq 'work' -and -not $isPrompt -and $ownsSession -and -not [Console]::IsInputRedirected
-if ($offerHandoff) {
+$pinSession = -not $isPrompt -and $ownsSession -and -not [Console]::IsInputRedirected
+$offerHandoff = $pinSession -and $profileName -eq 'work'
+if ($pinSession) {
     $sessionId = [guid]::NewGuid().ToString()
     $copilotArgs.Add('--session-id'); $copilotArgs.Add($sessionId)
 }
@@ -239,14 +244,17 @@ if ($dryRun) {
     exit 0
 }
 
+# Make cop's helper scripts (tf-check) callable by name in Copilot's shell.
+$env:PATH = $PSScriptRoot + [System.IO.Path]::PathSeparator + $env:PATH
+
 # Ctrl+C belongs to copilot; don't let it stop this script before the handoff check.
 $treatCtrlC = [Console]::TreatControlCAsInput
 try {
-    if ($offerHandoff) { [Console]::TreatControlCAsInput = $true }
+    if ($pinSession) { [Console]::TreatControlCAsInput = $true }
     & copilot @copilotArgs
     $code = $LASTEXITCODE
 } finally {
-    if ($offerHandoff) { [Console]::TreatControlCAsInput = $treatCtrlC }
+    if ($pinSession) { [Console]::TreatControlCAsInput = $treatCtrlC }
 }
 
 if ($offerHandoff) {
@@ -257,5 +265,8 @@ if ($offerHandoff) {
             & copilot @permissionArgs --resume $sessionId -p 'Run the handoff skill to update NOTES.md for this session. Do nothing else.'
         }
     }
+}
+if ($pinSession -and $profileName -eq 'research') {
+    [Console]::Error.WriteLine("cop: to continue this session with work permissions (findings carry over): cop work --resume $sessionId")
 }
 exit $code

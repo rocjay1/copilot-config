@@ -27,6 +27,8 @@ repo; don't look them up.
    then post each and resolve only the fixed and already-fixed threads:
    - reply: `gh api graphql -f id=<thread id> -f body='<reply>' -f query='mutation($id:ID!,$body:String!){addPullRequestReviewThreadReply(input:{pullRequestReviewThreadId:$id,body:$body}){comment{url}}}'`
    - resolve: `gh api graphql -f id=<thread id> -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}'`
+   Then, if fixes were pushed since the last review, offer to re-request a Copilot review
+   (step 6); a new review only covers what changed.
 6. When asked to request or re-request review: `gh pr edit <number> --add-reviewer @copilot`
    (with the `@`; a bare `copilot` fails). For a person, use their login. To confirm a Copilot
    request, look for its `review_requested` event in the timeline
