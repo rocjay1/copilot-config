@@ -12,6 +12,7 @@
 
 ## Commands
 - Format: `<command>`
+- Lint: `<command>`
 - Validate: `<command>`
 - Plan: `<command>`
 - Test: `<command>`
