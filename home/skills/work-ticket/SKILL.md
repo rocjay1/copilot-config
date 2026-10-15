@@ -10,6 +10,8 @@ Prevents: large changes landing in one pass that can't be reviewed.
 Gather first:
 - The ticket (read only) or the request in chat.
 - The files the change touches, and the repo's validate or test commands.
+- The acceptance criteria: what done looks like, with an example input and expected result
+  where one applies. If the ticket doesn't say, ask before planning.
 
 1. Propose a plan and wait for approval. If the session is in plan mode, write it as the plan
    there, so it can be edited before it's approved. The plan covers:

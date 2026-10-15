@@ -15,7 +15,9 @@ Commands are PowerShell 7 (`pwsh`). On Windows, `~` is your profile folder, `C:\
    be on `PATH`. Windows PowerShell 5.1 (`powershell.exe`) is not enough.
 2. Copilot CLI, installed the way your company allows (for example
    `npm install -g @github/copilot`; GitHub's install docs list other options), then signed in:
-   run `copilot` and follow `/login`.
+   run `copilot` and follow `/login`. Check whether suggestions matching public code are
+   blocked: your organization's Copilot policy decides it, or your own GitHub Copilot settings
+   if no organization manages your seat.
 3. `git`, plus the GitHub CLI signed in: `gh auth login`. The pre-approved PR and run reads use it.
 4. Script execution: PowerShell 7 on Windows defaults to `RemoteSigned`, which runs these local
    scripts. Check with `Get-ExecutionPolicy -List`. If a policy is set by your company
